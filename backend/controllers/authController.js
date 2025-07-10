@@ -1,4 +1,3 @@
-const User = require('../models/User');
 const OTP = require('../models/OTP');
 const AppError = require('../utils/appError');
 const catchAsync = require('../middleware/errorHandler').catchAsync;

@@ -3,9 +3,10 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 
 // Create a new user
-exports.createUser = catchAsync(async (req, res, next) => {
+exports.createUser =  catchAsync(async (req, res, next) => {
   try {
     console.log('Request body:', req.body);
+    console.log('Uploaded file:', req.file);
     
     const newUser = await User.create(req.body);
     console.log('User created successfully:', newUser);
@@ -22,6 +23,14 @@ exports.createUser = catchAsync(async (req, res, next) => {
   } catch (error) {
     console.error('Error creating user:', error);
     
+    // If there was an error and a photo was uploaded, clean it up
+    if (req.body.photo) {
+      const photoPath = path.join(__dirname, `../public/img/users/${req.body.photo}`);
+      if (fs.existsSync(photoPath)) {
+        await fs.promises.unlink(photoPath).catch(console.error);
+      }
+    }
+    
     // Handle validation errors
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(err => err.message);
@@ -37,7 +46,7 @@ exports.createUser = catchAsync(async (req, res, next) => {
     
     return next(new AppError('Error creating user', 500));
   }
-});
+})
 
 // Get all users
 exports.getAllUsers = catchAsync(async (req, res, next) => {
@@ -130,80 +139,3 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
   });
 });
 
-// Dummy data seeder
-exports.seedUsers = catchAsync(async (req, res, next) => {
-  console.log('Seeding users...');
-  
-  try {
-    // Delete all existing users
-    await User.deleteMany();
-    
-    // Create dummy users with unique mobile numbers
-    const dummyUsers = [
-      {
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john.doe@example.com',
-        password: 'Test@123',
-        mobile: {
-          countryCode: '+1',
-          number: '1234567890'
-        },
-        dateOfBirth: new Date('1990-01-15'),
-        gender: 'male',
-        city: 'New York',
-        isVerified: true,
-        registrationComplete: true
-      },
-      {
-        firstName: 'Jane',
-        lastName: 'Smith',
-        email: 'jane.smith@example.com',
-        password: 'Test@123',
-        mobile: {
-          countryCode: '+44',
-          number: '2345678901'
-        },
-        dateOfBirth: new Date('1992-05-20'),
-        gender: 'female',
-        city: 'London',
-        isVerified: true,
-        registrationComplete: true
-      },
-      {
-        firstName: 'Alex',
-        lastName: 'Johnson',
-        email: 'alex.j@example.com',
-        password: 'Test@123',
-        mobile: {
-          countryCode: '+91',
-          number: '3456789012'
-        },
-        dateOfBirth: new Date('1988-11-30'),
-        gender: 'other',
-        city: 'Mumbai',
-        isVerified: true,
-        registrationComplete: true
-      }
-    ];
-    
-    // Insert dummy users
-    const createdUsers = await User.create(dummyUsers);
-    
-    res.status(201).json({
-      status: 'success',
-      message: 'Dummy users created successfully',
-      data: {
-        count: createdUsers.length,
-        users: createdUsers.map(user => ({
-          id: user._id,
-          name: user.fullName,
-          email: user.email
-        }))
-      }
-    });
-  } catch (error) {
-    console.error('Error seeding users:', error);
-    return next(new AppError('Error seeding users', 500));
-  }
-});

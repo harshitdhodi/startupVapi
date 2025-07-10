@@ -26,7 +26,9 @@
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "mongoose": "^8.2.0",
+    "multer": "^2.0.1",
     "nodemon": "^3.1.10",
+    "sharp": "^0.34.3",
     "twilio": "^5.7.2"
   },
   "engines": {

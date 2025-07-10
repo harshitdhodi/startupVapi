@@ -1,27 +1,15 @@
 const express = require('express');
+const userController = require('../controllers/userController');
+
 const router = express.Router();
 
-const {
-  getAllUsers,
-  createUser,
-  getUser,
-  updateUser,
-  deleteUser,
-  seedUsers
-} = require('../controllers/userController');
-
-
 // Public routes (no authentication required)
-router.post('/add', createUser);
+router.post('/add', userController.createUser);
+router.get('/', userController.getAllUsers);
+router
+  .route('/:id')
+  .get(userController.getUser)
+  .patch(userController.updateUser)
+  .delete(userController.deleteUser);
 
-
-router.post('/seed', seedUsers);
-
-
-// Admin-only routes
-router.get('/', getAllUsers);
-router.get('/:id', getUser);
-router.patch('/:id', updateUser);
-router.delete('/:id', deleteUser);
-
-module.exports = router; 
+module.exports = router;

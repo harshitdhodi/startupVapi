@@ -12,4 +12,4 @@ router.post('/send-otp', authController.sendOTP);
 // @access  Public
 router.post('/verify-otp', authController.verifyOTP);
 
-module.exports = router;
+module.exports = router; 

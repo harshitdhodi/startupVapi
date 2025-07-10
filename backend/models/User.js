@@ -60,7 +60,7 @@ const userSchema = new mongoose.Schema({
       }
     }
   },
-  dateOfBirth: {
+  DOB: {
     type: Date,
     required: [true, 'Date of birth is required'],
     validate: {
