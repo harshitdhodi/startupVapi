@@ -20,6 +20,11 @@ const app = express();
 
 // Connect to MongoDB
 connectDB();
+
+// Set view engine and views directory
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
 // Limit requests from same API
 const limiter = rateLimit({
   max: 100,
@@ -45,9 +50,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
-app.use('/', require('./routes/index'));
+app.get('/about', (req, res) => {
+  res.status(200).send('Welcome to the About');
+});
+
+app.get('/', (req, res) => {
+  res.status(200).send('Welcome to the Home');
+});
+
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/user', require('./routes/userRoutes'));
 
 // Global error handling middleware
 app.use(globalErrorHandler);

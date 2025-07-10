@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "build": "echo 'Build completed'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -20,12 +21,15 @@
     "compression": "^1.8.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.1.0",
+    "ejs": "^3.1.10",
     "express": "^4.18.2",
-    "express-rate-limit": "^7.5.1",
+    "express-rate-limit": "^7.1.5",
     "mongoose": "^8.2.0",
+    "nodemon": "^3.1.10",
     "twilio": "^5.7.2"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
+ 

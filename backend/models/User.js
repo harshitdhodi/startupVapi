@@ -1,34 +1,85 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-  name: {
+  firstName: {
     type: String,
-    required: true,
+    required: [true, 'First name is required'],
+    trim: true
+  },
+  lastName: {
+    type: String,
+    required: [true, 'Last name is required'],
     trim: true
   },
   email: {
     type: String,
-    required: true,
+    required: [true, 'Email is required'],
     unique: true,
     trim: true,
-    lowercase: true
+    lowercase: true,
+    validate: {
+      validator: function(v) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+      },
+      message: props => `${props.value} is not a valid email!`
+    }
   },
+  photo: {
+    type: String,
+    default: 'default.jpg'
+  }, 
   password: {
     type: String,
-    required: true,
-    minlength: 6
-  },
-  mobile: {
-    type: String,
-    required: [true, 'Mobile number is required'],
-    unique: true,
+    required: [true, 'Password is required'],
     trim: true,
     validate: {
       validator: function(v) {
-        return /^\d{10}$/.test(v);
+        // More permissive password validation
+        return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(v);
       },
-      message: (props) => `${props.value} is not a valid mobile number!`
+      message: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one digit, and one special character'
     }
+  },
+  mobile: {
+    countryCode: {
+      type: String,
+      required: [true, 'Country code is required'],
+      default: '+91',
+      trim: true
+    },
+    number: {
+      type: String,
+      required: [true, 'Mobile number is required'],
+      unique: true,
+      trim: true,
+      validate: {
+        validator: function(v) {
+          return /^\d{10,15}$/.test(v);
+        },
+        message: (props) => `${props.value} is not a valid mobile number!`
+      }
+    }
+  },
+  dateOfBirth: {
+    type: Date,
+    required: [true, 'Date of birth is required'],
+    validate: {
+      validator: function(v) {
+        // Check if date is in the past
+        return v < new Date();
+      },
+      message: 'Date of birth must be in the past'
+    }
+  },
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other', 'prefer not to say'],
+    required: [true, 'Gender is required']
+  },
+  city: {
+    type: String,
+    required: [true, 'City is required'],
+    trim: true
   },
   otp: {
     code: {
@@ -41,6 +92,10 @@ const userSchema = new mongoose.Schema({
     }
   },
   isVerified: {
+    type: Boolean,
+    default: false
+  },
+  registrationComplete: {
     type: Boolean,
     default: false
   },
@@ -59,34 +114,14 @@ const userSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-/**
- * Generate OTP and set expiration
- * @returns {string} The generated OTP
- */
-userSchema.methods.generateOTP = function() {
-  // Generate a 6-digit OTP
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  // Set OTP to expire in 10 minutes
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+// Virtual for full name
+userSchema.virtual('fullName').get(function() {
+  return `${this.firstName} ${this.lastName}`;
+});
 
-  this.otp = {
-    code: otp,
-    expiresAt
-  };
-
-  return otp;
-};
-
-/**
- * Verify OTP
- * @param {string} otp - The OTP to verify
- * @returns {boolean} Whether the OTP is valid
- */
-userSchema.methods.verifyOTP = function(otp) {
-  if (!this.otp || !this.otp.code || this.otp.expiresAt < new Date()) {
-    return false;
-  }
-  return this.otp.code === otp;
+// Method to check if user has completed full registration
+userSchema.methods.hasCompleteRegistration = function() {
+  return this.registrationComplete && this.firstName && this.lastName && this.email;
 };
 
 // Query middleware to filter out inactive users by default
