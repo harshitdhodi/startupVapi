@@ -10,22 +10,13 @@ const {
   seedUsers
 } = require('../controllers/userController');
 
-const {
-  protect,
-  restrictTo
-} = require('../controllers/authController');
 
 // Public routes (no authentication required)
 router.post('/add', createUser);
 
-// Route to seed dummy data (only in development)
-if (process.env.NODE_ENV === 'development') {
-  router.post('/seed', seedUsers);
-}
 
-// Protected routes (authentication required)
-router.use(protect);
-router.use(restrictTo('admin'));
+router.post('/seed', seedUsers);
+
 
 // Admin-only routes
 router.get('/', getAllUsers);

@@ -3,8 +3,6 @@ const OTP = require('../models/OTP');
 const AppError = require('../utils/appError');
 const catchAsync = require('../middleware/errorHandler').catchAsync;
 const twilio = require('twilio');
-const jwt = require('jsonwebtoken');
-const promisify = require('util').promisify;
 
 // Validate environment variables
 if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
@@ -25,7 +23,7 @@ try {
   process.exit(1);
 }
 
-// Generate a 6-digit OTP
+// Generate a random 6-digit OTP
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
@@ -78,59 +76,35 @@ exports.sendOTP = catchAsync(async (req, res, next) => {
   }
 
   try {
-    // Clean the mobile number
-    const cleanedMobile = mobile.replace(/\D/g, '');
-    console.log('Sending OTP for mobile:', cleanedMobile);
-    
     // Generate OTP
     const otp = generateOTP();
-    console.log('Generated OTP:', otp);
     
     // Delete any existing OTPs for this mobile
-    const deleteResult = await OTP.deleteMany({ mobile: cleanedMobile });
-    console.log('Deleted existing OTPs:', deleteResult);
+    await OTP.deleteMany({ mobile });
     
     // Save new OTP to database
-    const otpDoc = new OTP({ 
-      mobile: cleanedMobile, 
-      otp: otp.trim() 
+    const otpDoc = new OTP({
+      mobile,
+      otp
     });
-    
-    // Manually validate before saving
-    try {
-      await otpDoc.validate();
-      console.log('OTP document is valid');
-    } catch (validationError) {
-      console.error('OTP validation error:', validationError);
-      throw validationError;
-    }
     
     await otpDoc.save();
-    console.log('OTP saved to database. Document:', {
-      _id: otpDoc._id,
-      mobile: otpDoc.mobile,
-      otp: otpDoc.otp,
-      createdAt: otpDoc.createdAt
-    });
-    
-    // Verify the document was saved
-    const savedOtp = await OTP.findById(otpDoc._id);
-    console.log('Retrieved OTP from database:', savedOtp);
     
     // Send OTP via SMS
-    await sendOTPviaSMS(cleanedMobile, otp);
+    await sendOTPviaSMS(mobile, otp);
 
     res.status(200).json({
       status: 'success',
       message: 'OTP sent successfully',
       data: {
-        mobile: cleanedMobile,
+        mobile,
+        // Only send OTP in development for testing
         otp: process.env.NODE_ENV === 'development' ? otp : undefined
       }
     });
   } catch (error) {
     console.error('Error in sendOTP:', error);
-    return next(new AppError('Failed to send OTP. Please try again.', 500));
+    return next(new AppError(error.message || 'Failed to send OTP', 500));
   }
 });
 
@@ -148,15 +122,16 @@ exports.verifyOTP = catchAsync(async (req, res, next) => {
   }
   
   try {
-    // Clean the mobile number to match the stored format
-    const cleanedMobile = mobile.replace(/\D/g, '');
-    console.log('Cleaned mobile for verification:', cleanedMobile);
+    // Ensure consistent mobile number format (remove all non-digit characters and add +)
+    const cleanedMobile = `+${mobile.replace(/\D/g, '')}`;
+    console.log('Formatted mobile for verification:', cleanedMobile);
     
     // Find the OTP document
     const otpDoc = await OTP.findOne({ 
       mobile: cleanedMobile,
       otp: otp.trim()
     });
+    
     console.log('OTP document found:', otpDoc);
     if (!otpDoc) {
       return next(new AppError('Invalid or expired OTP', 400));
@@ -179,90 +154,3 @@ exports.verifyOTP = catchAsync(async (req, res, next) => {
     return next(new AppError('Failed to verify OTP. Please try again.', 500));
   }
 });
-
-// Protect routes - verify JWT token
-const protect = catchAsync(async (req, res, next) => {
-  // 1) Getting token and check if it's there
-  let token;
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies.jwt) {
-    token = req.cookies.jwt;
-  }
-
-  if (!token) {
-    return next(
-      new AppError('You are not logged in! Please log in to get access.', 401)
-    );
-  }
-
-  // 2) Verify token
-  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
-
-  // 3) Check if user still exists
-  const currentUser = await User.findById(decoded.id);
-  if (!currentUser) {
-    return next(
-      new AppError('The user belonging to this token no longer exists.', 401)
-    );
-  }
-
-  // 4) Check if user changed password after the token was issued
-  if (currentUser.changedPasswordAfter(decoded.iat)) {
-    return next(
-      new AppError('User recently changed password! Please log in again.', 401)
-    );
-  }
-
-  // GRANT ACCESS TO PROTECTED ROUTE
-  req.user = currentUser;
-  res.locals.user = currentUser;
-  next();
-});
-
-// Restrict certain routes to specific roles
-const restrictTo = (...roles) => {
-  return (req, res, next) => {
-    // roles ['admin', 'lead-guide']
-    if (!roles.includes(req.user.role)) {
-      return next(
-        new AppError('You do not have permission to perform this action', 403)
-      );
-    }
-    next();
-  };
-};
-
-// Add JWT related utility functions
-const signToken = id => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN
-  });
-};
-
-const createSendToken = (user, statusCode, res) => {
-  const token = signToken(user._id);
-  
-  // Remove password from output
-  user.password = undefined;
-
-  res.status(statusCode).json({
-    status: 'success',
-    token,
-    data: {
-      user
-    }
-  });
-};
-
-// Export all the middleware and controller functions
-module.exports = {
-  sendOTP: exports.sendOTP,
-  verifyOTP: exports.verifyOTP,
-  protect,
-  restrictTo,
-  createSendToken
-};
