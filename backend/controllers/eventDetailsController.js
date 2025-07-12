@@ -284,3 +284,38 @@ exports.deleteEventDetails = asyncHandler(async (req, res, next) => {
     data: null
   });
 });
+
+
+exports.getEventDetailsByFilter = asyncHandler(async (req, res, next) => {
+  try {
+    console.log('Request query parameters:', req.query);
+    const filter = req.query.filter || 'all';
+    console.log('Filter value:', filter); 
+    const currentDate = new Date();
+    console.log('Current date:', currentDate);
+    let query = {};
+
+  if (filter === 'upcoming') {
+    query = { date: { $gte: currentDate } };
+  } else if (filter === 'past') {
+    query = { date: { $lt: currentDate } };
+  } else if (filter !== 'all') {
+    return next(new AppError('Invalid filter value. Use "upcoming", "past", or "all".', 400));
+  }
+
+  console.log('MongoDB query:', query);
+  const eventDetails = await EventDetails.find(query).populate('eventId');
+  console.log('Found events:', eventDetails.length);
+
+  res.status(200).json({
+    status: 'success',
+    results: eventDetails.length,
+    data: {
+      eventDetails
+    }
+  });
+  } catch (error) {
+    console.error('Error in getEventDetailsByFilter:', error);
+    next(error);
+  }
+});

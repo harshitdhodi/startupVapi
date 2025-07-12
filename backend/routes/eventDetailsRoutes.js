@@ -7,7 +7,8 @@ const {
   getEventDetails,
   updateEventDetails,
   deleteEventDetails,
-  updateEventBanner
+  updateEventBanner,
+  getEventDetailsByFilter
 } = require('../controllers/eventDetailsController');
 const { protect, admin } = require('../middleware/authMiddleware');
 
@@ -15,13 +16,13 @@ const { protect, admin } = require('../middleware/authMiddleware');
 router.route('/')
   .get(getAllEventDetails)
   .post(createEventDetails);  // Allow public creation
+router.get('/filterEvent', getEventDetailsByFilter);
 
 router.route('/:id')
   .get(getEventDetails);
 
 // Banner upload route (public for now)
 router.post('/upload-banner', uploadEventBanner);
-
 // Update routes (public for now)
 router.route('/:id')
   .patch(updateEventDetails)
