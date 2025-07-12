@@ -139,3 +139,19 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
   });
 });
 
+exports.getUserVerificationStatus = catchAsync(async (req, res, next) => {
+  const user = await User.findById(req.params.id).select('isVerified');
+  console.log('User ID from params:', req.params.id);
+  console.log('Found user:', user);
+  
+  if (!user) {
+    return next(new AppError('No user found with that ID', 404));
+  }
+  
+  res.status(201).json({
+    status: 'success',
+    data: {
+      isVerified: user.isVerified
+    }
+  });
+});

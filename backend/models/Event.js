@@ -10,6 +10,10 @@ const eventSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Please provide maximum number of seats'],
     min: 1
+  },
+  isStartUpVapiEvent: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

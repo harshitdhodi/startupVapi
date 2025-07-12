@@ -5,11 +5,13 @@ const asyncHandler = require('express-async-handler');
 // @route   POST /api/events
 // @access  Private/Admin
 exports.createEvent = asyncHandler(async (req, res) => {
-  const { name, max_seats } = req.body;
-console.log(req.body);
+  const { name, max_seats, isStartUpVapiEvent = false } = req.body;
+  console.log(req.body);
+  
   const event = await Event.create({
     name,
-    max_seats
+    max_seats,
+    isStartUpVapiEvent
   });
 
   res.status(201).json({
@@ -59,10 +61,24 @@ exports.updateEvent = asyncHandler(async (req, res) => {
     throw new Error('Event not found');
   }
 
-  event = await Event.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true
+  const { isStartUpVapiEvent, ...updateData } = req.body;
+  
+  // Add isStartUpVapiEvent field if it doesn't exist
+  if (event.isStartUpVapiEvent === undefined) {
+    event.isStartUpVapiEvent = false; // Default value
+  }
+  
+  // Update isStartUpVapiEvent if provided in the request
+  if (isStartUpVapiEvent !== undefined) {
+    event.isStartUpVapiEvent = isStartUpVapiEvent;
+  }
+  
+  // Update other fields
+  Object.keys(updateData).forEach(key => {
+    event[key] = updateData[key];
   });
+  
+  await event.save();
 
   res.status(200).json({
     success: true,
