@@ -55,6 +55,8 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/userRoutes'));
+app.use('/api/event', require('./routes/eventRoutes'));
+app.use('/api/event-details', require('./routes/eventDetailsRoutes'));
 
 // Test routes
 app.get('/about', (req, res) => {

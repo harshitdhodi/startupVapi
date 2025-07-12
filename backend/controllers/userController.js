@@ -50,8 +50,8 @@ exports.createUser =  catchAsync(async (req, res, next) => {
 
 // Get all users
 exports.getAllUsers = catchAsync(async (req, res, next) => {
-  const users = await User.find().select('-password -otp -__v');
-  
+  console.log('Request body:');
+  const users = await User.find();
   res.status(200).json({
     status: 'success',
     results: users.length,
@@ -63,7 +63,7 @@ exports.getAllUsers = catchAsync(async (req, res, next) => {
 
 // Get single user
 exports.getUser = catchAsync(async (req, res, next) => {
-  const user = await User.findById(req.params.id).select('-password -otp -__v');
+  const user = await User.findById(req.params.id);
   
   if (!user) {
     return next(new AppError('No user found with that ID', 404));
@@ -93,7 +93,7 @@ exports.updateUser = catchAsync(async (req, res, next) => {
         new: true,
         runValidators: true
       }
-    ).select('-password -otp -__v');
+    );
 
     if (!updatedUser) {
       return next(new AppError('No user found with that ID', 404));

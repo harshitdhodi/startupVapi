@@ -3,6 +3,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 const AppError = require('../utils/appError');
+const catchAsync = require('../utils/catchAsync');
 
 // Configure multer for memory storage
 const multerStorage = multer.memoryStorage();
@@ -24,24 +25,27 @@ const upload = multer({
 });
 
 // Middleware to handle single photo upload
-const uploadUserPhoto = upload.single('photo');
+const uploadUserPhoto = upload.single('banner');
 
 // Resize and save the uploaded photo
 const resizeUserPhoto = catchAsync(async (req, res, next) => {
   if (!req.file) return next();
 
   // Create filename
-  const filename = `user-${req.user.id}-${Date.now()}.jpeg`;
+  const filename = `event-banner-${Date.now()}.jpeg`;
   
   // Create directory if it doesn't exist
-  const uploadDir = path.join(__dirname, '../public/img/users');
+  const uploadDir = path.join(__dirname, '../public/img/events');
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 
   // Process the image
   await sharp(req.file.buffer)
-    .resize(500, 500)
+    .resize(1200, 630, {  // Standard banner size
+      fit: 'cover',
+      position: 'center'
+    })
     .toFormat('jpeg')
     .jpeg({ quality: 90 })
     .toFile(path.join(uploadDir, filename));
@@ -52,13 +56,14 @@ const resizeUserPhoto = catchAsync(async (req, res, next) => {
 });
 
 // Delete old photo when updating
-const deleteOldPhoto = async (photo) => {
-  if (!photo) return;
-  
-  const photoPath = path.join(__dirname, `../public/img/users/${photo}`);
-  
-  if (fs.existsSync(photoPath)) {
-    await fs.promises.unlink(photoPath);
+const deleteOldPhoto = (photo) => {
+  if (photo) {
+    const photoPath = path.join(__dirname, `../public/img/events/${photo}`);
+    if (fs.existsSync(photoPath)) {
+      fs.unlink(photoPath, err => {
+        if (err) console.error('Error deleting old photo:', err);
+      });
+    }
   }
 };
 
