@@ -7,8 +7,12 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const cors = require('cors');
+const multer = require('multer');
 const connectDB = require('./config/db');
 const globalErrorHandler = require('./middleware/errorHandler').globalErrorHandler;
+
+// Configure multer for file uploads
+const upload = multer();
 
 // Log environment variables for debugging
 console.log('Environment variables:', {
@@ -22,8 +26,48 @@ const app = express();
 // Enable CORS
 app.use(cors());
 
-// Body parser, reading data from body into req.body
-app.use(express.json({ limit: '10kb' }));
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log('Incoming Request:', {
+    method: req.method,
+    url: req.originalUrl,
+    headers: req.headers
+  });
+  next();
+});
+
+// Parse JSON and URL-encoded bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Store raw body for text/plain requests
+app.use((req, res, next) => {
+  if (req.headers['content-type'] === 'text/plain') {
+    let rawBody = '';
+    req.on('data', chunk => {
+      rawBody += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        req.body = JSON.parse(rawBody);
+        next();
+      } catch (error) {
+        console.error('Error parsing JSON:', error);
+        res.status(400).json({ error: 'Invalid JSON' });
+      }
+    });
+  } else {
+    // For other content types, use the standard body parsers
+    express.json({ limit: '10kb' })(req, res, (err) => {
+      if (err) {
+        console.error('JSON parse error:', err);
+        return res.status(400).json({ error: 'Invalid JSON' });
+      }
+      next();
+    });
+  }
+});
+
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
 
@@ -52,11 +96,32 @@ app.use((req, res, next) => {
   next();
 });
 
+// Test endpoint for debugging request body
+app.post('/api/test-body', (req, res) => {
+  console.log('Test endpoint - Request body:', req.body);
+  console.log('Test endpoint - Request headers:', req.headers);
+  
+  let rawBody = '';
+  req.on('data', chunk => {
+    rawBody += chunk.toString();
+  });
+  
+  req.on('end', () => {
+    console.log('Test endpoint - Raw body:', rawBody);
+    res.status(200).json({
+      headers: req.headers,
+      body: req.body,
+      rawBody: rawBody
+    });
+  });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/userRoutes'));
 app.use('/api/event', require('./routes/eventRoutes'));
 app.use('/api/event-details', require('./routes/eventDetailsRoutes'));
+app.use('/api/tips-and-tricks', require('./routes/tipsAndTricksRoutes'));
 
 // Test routes
 app.get('/about', (req, res) => {

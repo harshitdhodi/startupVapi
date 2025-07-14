@@ -3,26 +3,44 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 
 // Create a new user
-exports.createUser =  catchAsync(async (req, res, next) => {
+exports.createUser = catchAsync(async (req, res, next) => {
   try {
     console.log('Request body:', req.body);
-    console.log('Uploaded file:', req.file);
-    
+
+    // Calculate age from DOB
+    const dob = new Date(req.body.DOB);
+    if (isNaN(dob)) {
+      return next(new AppError('Invalid date of birth provided', 400));
+    }
+
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    const dayDiff = today.getDate() - dob.getDate();
+
+    // Adjust age if birthday hasn't occurred this year
+    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+      age--;
+    }
+
+    // Assign role based on age
+    req.body.role = age < 20 ? 'student' : 'jury';
+
     const newUser = await User.create(req.body);
     console.log('User created successfully:', newUser);
-    
+
     // Remove sensitive data from output
     newUser.password = undefined;
-    
+
     res.status(201).json({
       status: 'success',
       data: {
-        user: newUser
-      }
+        user: newUser,
+      },
     });
   } catch (error) {
     console.error('Error creating user:', error);
-    
+
     // If there was an error and a photo was uploaded, clean it up
     if (req.body.photo) {
       const photoPath = path.join(__dirname, `../public/img/users/${req.body.photo}`);
@@ -30,23 +48,23 @@ exports.createUser =  catchAsync(async (req, res, next) => {
         await fs.promises.unlink(photoPath).catch(console.error);
       }
     }
-    
+
     // Handle validation errors
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(err => err.message);
       return next(new AppError(`Validation Error: ${errors.join('. ')}`, 400));
     }
-    
+
     // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyValue)[0];
       const value = error.keyValue[field];
       return next(new AppError(`Duplicate ${field}: ${value}. Please use another value.`, 400));
     }
-    
+
     return next(new AppError('Error creating user', 500));
   }
-})
+});
 
 // Get all users
 exports.getAllUsers = catchAsync(async (req, res, next) => {

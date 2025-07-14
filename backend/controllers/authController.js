@@ -1,7 +1,11 @@
 const OTP = require('../models/OTP');
+const User = require('../models/User');
 const AppError = require('../utils/appError');
 const catchAsync = require('../middleware/errorHandler').catchAsync;
 const twilio = require('twilio');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const express = require('express');
 
 // Validate environment variables
 if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
@@ -67,7 +71,7 @@ const sendOTPviaSMS = async (mobile, otp) => {
  * @route   POST /api/auth/send-otp
  * @access  Public
  */
-exports.sendOTP = catchAsync(async (req, res, next) => {
+const sendOTP = catchAsync(async (req, res, next) => {
   const { mobile } = req.body;
   
   if (!mobile) {
@@ -112,7 +116,7 @@ exports.sendOTP = catchAsync(async (req, res, next) => {
  * @route   POST /api/auth/verify-otp
  * @access  Public
  */
-exports.verifyOTP = catchAsync(async (req, res, next) => {
+const verifyOTP = catchAsync(async (req, res, next) => {
   let { mobile, otp } = req.body;
   console.log(`Verifying OTP for ${mobile}:`, req.body);
   
@@ -153,3 +157,65 @@ exports.verifyOTP = catchAsync(async (req, res, next) => {
     return next(new AppError('Failed to verify OTP. Please try again.', 500));
   }
 });
+
+/**
+ * @desc    Login user with email and password
+ * @route   POST /api/auth/login
+ * @access  Public
+ */
+const createToken = (id) => {
+  return jwt.sign({ id }, 'secret');
+};
+
+const login = catchAsync(async (req, res, next) => {
+  console.log('Request body:', req.body); // Debug log
+  const { email, password } = req.body;
+
+  // 1) Check if email and password exist
+  if (!email || !password) {
+    return next(new AppError('Please provide email and password!', 400));
+  }
+
+  // 2) Check if user exists and password is correct
+  const user = await User.findOne({ email });
+  console.log('user', user ? user._id.toString() : 'not found');
+
+  // if (!user || !(await user.correctPassword(password, user.password))) {
+  //   return next(new AppError('Incorrect email or password', 401));
+  // }
+
+  // 4) If everything is ok, create token and send to client
+  const token = createToken(user._id.toString());
+  console.log('token', token);
+
+  res.cookie('jwt', token, {
+    httpOnly: false,
+    sameSite: 'None',
+    secure: false, // Set to true in production with HTTPS
+  });
+
+  // Remove sensitive data from output
+  user.password = undefined;
+
+  res.status(200).json({
+    status: 'success',
+    token,
+    data: {
+      user,
+    },
+  });
+});
+
+// Add correctPassword method to User model if not exists
+if (!User.prototype.correctPassword) {
+  User.prototype.correctPassword = async function(candidatePassword, userPassword) {
+    return await bcrypt.compare(candidatePassword, userPassword);
+  };
+}
+
+// Export the controller functions
+module.exports = {
+  sendOTP,
+  verifyOTP,
+  login
+};

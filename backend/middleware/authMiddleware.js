@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const AppError = require('../utils/appError');
+const catchAsync = require('./errorHandler').catchAsync;
 
 // Protect routes - user must be logged in
 exports.protect = async (req, res, next) => {
@@ -51,6 +52,27 @@ exports.admin = (req, res, next) => {
 };
 
 // Check if user is logged in (for frontend use)
+/**
+ * @desc    Require authentication middleware
+ * @access  Private
+ */
+exports.requireAuth = catchAsync(async (req, res, next) => {
+    const token = req.cookies.jwt;
+    
+    if (!token) {
+        console.log("Can't redirect: Unauthorized user");
+        throw new AppError('Unauthenticated user', 401);
+    }
+    
+    const decodedToken = await jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    req.user = { id: decodedToken.id };
+    next();
+});
+
+/**
+ * @desc    Check if user is logged in (for frontend use)
+ * @access  Public
+ */
 exports.isLoggedIn = async (req, res, next) => {
   if (req.cookies.token) {
     try {

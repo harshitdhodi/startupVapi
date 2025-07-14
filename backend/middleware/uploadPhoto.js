@@ -29,30 +29,42 @@ const uploadUserPhoto = upload.single('banner');
 
 // Resize and save the uploaded photo
 const resizeUserPhoto = catchAsync(async (req, res, next) => {
-  if (!req.file) return next();
+  if (!req.file) return next(new AppError('No file was uploaded', 400));
 
-  // Create filename
-  const filename = `event-banner-${Date.now()}.jpeg`;
-  
-  // Create directory if it doesn't exist
-  const uploadDir = path.join(__dirname, '../public/img/events');
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+  try {
+    // Create filename
+    const filename = `${Date.now()}.jpeg`;
+    
+    // Create directory if it doesn't exist
+    const uploadDir = path.join(__dirname, '../public/img/events');
+    
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true, mode: 0o777 });
+    }
+
+    // Process the image
+    await sharp(req.file.buffer)
+      .resize(1200, 630, {  // Standard banner size
+        fit: 'cover',
+        position: 'center',
+        withoutEnlargement: true
+      })
+      .toFormat('jpeg')
+      .jpeg({ 
+        quality: 90,
+        progressive: true,
+        force: false
+      })
+      .toFile(path.join(uploadDir, filename));
+
+    // Save the filename to the file object
+    req.file.filename = `${filename}`;  // Save relative path
+    next();
+  } catch (error) {
+    console.error('Error processing image:', error);
+    return next(new AppError('Error processing the uploaded image', 500));
   }
-
-  // Process the image
-  await sharp(req.file.buffer)
-    .resize(1200, 630, {  // Standard banner size
-      fit: 'cover',
-      position: 'center'
-    })
-    .toFormat('jpeg')
-    .jpeg({ quality: 90 })
-    .toFile(path.join(uploadDir, filename));
-
-  // Save the filename to the request object
-  req.body.photo = filename;
-  next();
 });
 
 // Delete old photo when updating

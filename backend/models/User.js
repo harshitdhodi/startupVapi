@@ -99,6 +99,11 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  role: {
+    type: String,
+    enum: ['student','jury','member','admin'],
+    default: 'student'
+  },
   active: {
     type: Boolean,
     default: true,

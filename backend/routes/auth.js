@@ -12,4 +12,9 @@ router.post('/send-otp', authController.sendOTP);
 // @access  Public
 router.post('/verify-otp', authController.verifyOTP);
 
-module.exports = router; 
+// @route   POST /api/auth/login
+// @desc    Login user with email and password
+// @access  Public
+router.post('/login', authController.login);
+
+module.exports = router;
