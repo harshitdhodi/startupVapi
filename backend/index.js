@@ -57,7 +57,6 @@ app.use((req, res, next) => {
       }
     });
   } else {
-    // For other content types, use the standard body parsers
     express.json({ limit: '10kb' })(req, res, (err) => {
       if (err) {
         console.error('JSON parse error:', err);
@@ -100,12 +99,12 @@ app.use((req, res, next) => {
 app.post('/api/test-body', (req, res) => {
   console.log('Test endpoint - Request body:', req.body);
   console.log('Test endpoint - Request headers:', req.headers);
-  
+
   let rawBody = '';
   req.on('data', chunk => {
     rawBody += chunk.toString();
   });
-  
+
   req.on('end', () => {
     console.log('Test endpoint - Raw body:', rawBody);
     res.status(200).json({
@@ -116,12 +115,25 @@ app.post('/api/test-body', (req, res) => {
   });
 });
 
-// Routes
+// API Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/userRoutes'));
 app.use('/api/event', require('./routes/eventRoutes'));
 app.use('/api/event-details', require('./routes/eventDetailsRoutes'));
 app.use('/api/tips-and-tricks', require('./routes/tipsAndTricksRoutes'));
+
+// Static frontend serving (e.g., from React/Vite build)
+const frontendPath = path.join(__dirname, 'dist');
+app.use(express.static(frontendPath));
+
+// Serve index.html for unknown routes (for client-side routing)
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.includes('.')) {
+    return next();
+  }
+
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 
 // Test routes
 app.get('/about', (req, res) => {
