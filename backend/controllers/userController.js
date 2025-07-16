@@ -100,7 +100,7 @@ exports.updateUser = catchAsync(async (req, res, next) => {
   try {
     // 1) Filter out unwanted field names that are not allowed to be updated
     const filteredBody = { ...req.body };
-    const excludedFields = ['password', 'otp', 'isVerified'];
+    const excludedFields = ['password', 'otp'];
     excludedFields.forEach(el => delete filteredBody[el]);
 
     // 2) Update user document
