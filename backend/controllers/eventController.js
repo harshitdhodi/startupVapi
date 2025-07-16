@@ -54,6 +54,7 @@ exports.getEvent = asyncHandler(async (req, res) => {
 // @route   PUT /api/events/:id
 // @access  Private/Admin
 exports.updateEvent = asyncHandler(async (req, res) => {
+  console.log("req.body",req.body);
   let event = await Event.findById(req.params.id);
 
   if (!event) {
@@ -67,17 +68,17 @@ exports.updateEvent = asyncHandler(async (req, res) => {
   if (event.isStartUpVapiEvent === undefined) {
     event.isStartUpVapiEvent = false; // Default value
   }
-  
+  console.log("req.body",isStartUpVapiEvent);
   // Update isStartUpVapiEvent if provided in the request
   if (isStartUpVapiEvent !== undefined) {
-    event.isStartUpVapiEvent = isStartUpVapiEvent;
+    event.isStartUpVapiEvent = isStartUpVapiEvent === 'true';
   }
   
   // Update other fields
   Object.keys(updateData).forEach(key => {
     event[key] = updateData[key];
   });
-  
+  console.log("event",event);
   await event.save();
 
   res.status(200).json({

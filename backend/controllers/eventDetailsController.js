@@ -4,6 +4,7 @@ const { uploadUserPhoto, resizeUserPhoto, deleteOldPhoto } = require('../middlew
 const AppError = require('../utils/appError');
 const moment = require('moment');
 const mongoose = require('mongoose');
+const Event = require('../models/Event');
 
 // @desc    Upload event banner
 // @route   POST /api/event-details/upload-banner
@@ -151,9 +152,6 @@ exports.createEventDetails = [
   }),
 ];
 
-
-
-
 // @desc    Update event banner
 // @route   PATCH /api/event-details/:id/banner
 // @access  Private/Admin
@@ -285,7 +283,27 @@ exports.deleteEventDetails = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Get event details for Startup Vapi events
+// @route   GET /api/event-details/startup-vapi-events
+// @access  Public
+exports.getStartupVapiEventDetails = asyncHandler(async (req, res, next) => {
+  // Find events where isStartUpVapiEvent is true
+  const events = await Event.find({ isStartUpVapiEvent: true });
 
+  // Find event details for the above events
+  const eventDetails = await EventDetails.find({ eventId: { $in: events.map(event => event._id) } }).populate('eventId')
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    status: 'success',
+    results: eventDetails.length,
+    data: eventDetails
+  });
+});
+
+// @desc    Get event details by filter
+// @route   GET /api/event-details/filter
+// @access  Public
 exports.getEventDetailsByFilter = asyncHandler(async (req, res, next) => {
   try {
     console.log('Request query parameters:', req.query);

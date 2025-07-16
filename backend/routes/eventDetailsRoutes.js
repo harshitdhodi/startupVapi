@@ -8,7 +8,8 @@ const {
   updateEventDetails,
   deleteEventDetails,
   updateEventBanner,
-  getEventDetailsByFilter
+  getEventDetailsByFilter,
+  getStartupVapiEventDetails
 } = require('../controllers/eventDetailsController');
 const { protect, admin } = require('../middleware/authMiddleware');
 
@@ -16,6 +17,9 @@ const { protect, admin } = require('../middleware/authMiddleware');
 router.route('/')
   .get(getAllEventDetails)
   .post(createEventDetails);  // Allow public creation
+  
+router.get('/startup-vapi-events', getStartupVapiEventDetails);
+
 router.get('/filterEvent', getEventDetailsByFilter);
 
 router.route('/:id')
