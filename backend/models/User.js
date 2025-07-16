@@ -82,14 +82,17 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
   otp: {
-    code: {
-      type: String,
-      select: false
+    type: {
+      code: {
+        type: String,
+        select: false
+      },
+      expiresAt: {
+        type: Date,
+        select: false
+      }
     },
-    expiresAt: {
-      type: Date,
-      select: false
-    }
+    select: false
   },
   isVerified: {
     type: Boolean,

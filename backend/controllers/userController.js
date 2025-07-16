@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const User = require('../models/User');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
@@ -97,19 +99,37 @@ exports.getUser = catchAsync(async (req, res, next) => {
 
 // Update user
 exports.updateUser = catchAsync(async (req, res, next) => {
-  try {
-    // 1) Filter out unwanted field names that are not allowed to be updated
-    const filteredBody = { ...req.body };
-    const excludedFields = ['password', 'otp'];
-    excludedFields.forEach(el => delete filteredBody[el]);
+  console.log('Request body:', req.body);
+  console.log('Uploaded file:', req.file);
 
-    // 2) Update user document
-    const updatedUser = await User.findByIdAndUpdate(
+  // Create filteredBody with only allowed fields
+  const filteredBody = {};
+  const allowedFields = ['firstName', 'lastName', 'email', 'photo', 'mobile', 'DOB', 'gender'];
+
+  // Add fields from req.body to filteredBody
+  Object.keys(req.body).forEach(key => {
+    if (allowedFields.includes(key)) {
+      filteredBody[key] = req.body[key];
+    }
+  });
+
+  // If a file was uploaded, update the photo field with the processed filename
+  if (req.file && req.body.photo) {
+    filteredBody.photo = req.body.photo; // This is set by resizeUserPhoto middleware
+  }
+
+  console.log('Filtered body:', filteredBody);
+
+  // Update user document
+  let updatedUser;
+  try {
+    updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       filteredBody,
       {
         new: true,
-        runValidators: true
+        runValidators: true,
+        select: '-__v -password -otp -otpExpires'
       }
     );
 
@@ -117,30 +137,32 @@ exports.updateUser = catchAsync(async (req, res, next) => {
       return next(new AppError('No user found with that ID', 404));
     }
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        user: updatedUser
-      }
-    });
+    console.log('Updated user:', updatedUser);
   } catch (error) {
-    console.error('Error updating user:', error);
-    
-    // Handle validation errors
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
-      return next(new AppError(`Validation Error: ${errors.join('. ')}`, 400));
-    }
-    
-    // Handle duplicate key errors
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyValue)[0];
-      const value = error.keyValue[field];
-      return next(new AppError(`Duplicate ${field}: ${value}. Please use another value.`, 400));
-    }
-    
+    console.error('Database update error:', error);
     return next(new AppError('Error updating user', 500));
   }
+
+  // If there was a previous photo and it's not the default, delete it
+  if (updatedUser.photo && updatedUser.photo !== 'default.jpg' && req.file) {
+    try {
+      const photoPath = path.join(__dirname, '../public/img/users', updatedUser.photo);
+      if (fs.existsSync(photoPath)) {
+        await fs.promises.unlink(photoPath);
+        console.log('Old photo deleted:', updatedUser.photo);
+      }
+    } catch (error) {
+      console.error('Error deleting old photo:', error);
+      // Don't fail the request if we can't delete the old photo
+    }
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      user: updatedUser
+    }
+  });
 });
 
 // Delete user

@@ -25,57 +25,59 @@ const upload = multer({
 });
 
 // Middleware to handle single photo upload
-const uploadUserPhoto = upload.single('banner');
+const uploadUserPhoto = upload.single('photo'); 
 
 // Resize and save the uploaded photo
 const resizeUserPhoto = catchAsync(async (req, res, next) => {
-  if (!req.file) return next(new AppError('No file was uploaded', 400));
+  if (!req.file) return next(); 
 
   try {
-    // Create filename
-    const filename = `${Date.now()}.jpeg`;
+    // Create filename with user ID and timestamp
+    const filename = `user-${req.user.id}-${Date.now()}.jpeg`;
     
     // Create directory if it doesn't exist
-    const uploadDir = path.join(__dirname, '../public/img/events');
+    const uploadDir = path.join(__dirname, '../public/img/users');
     
-    // Ensure directory exists
+    // Ensure directory exists with proper permissions
     if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true, mode: 0o777 });
+      fs.mkdirSync(uploadDir, { recursive: true, mode: 0o755 });
     }
+
+    const filePath = path.join(uploadDir, filename);
 
     // Process the image
     await sharp(req.file.buffer)
-      .resize(1200, 630, {  // Standard banner size
+      .resize(500, 500, {
         fit: 'cover',
         position: 'center',
         withoutEnlargement: true
       })
       .toFormat('jpeg')
-      .jpeg({ 
-        quality: 90,
-        progressive: true,
-        force: false
-      })
-      .toFile(path.join(uploadDir, filename));
+      .jpeg({ quality: 90 })
+      .toFile(filePath);
 
-    // Save the filename to the file object
-    req.file.filename = `${filename}`;  // Save relative path
+    // Set the photo filename in the request body for the controller
+    req.body.photo = filename;
+    
     next();
   } catch (error) {
     console.error('Error processing image:', error);
-    return next(new AppError('Error processing the uploaded image', 500));
+    return next(new AppError('Error processing image', 500));
   }
 });
 
 // Delete old photo when updating
-const deleteOldPhoto = (photo) => {
-  if (photo) {
-    const photoPath = path.join(__dirname, `../public/img/events/${photo}`);
+const deleteOldPhoto = async (photo) => {
+  if (!photo) return;
+  
+  const photoPath = path.join(__dirname, '../public/img/users', photo);
+  
+  try {
     if (fs.existsSync(photoPath)) {
-      fs.unlink(photoPath, err => {
-        if (err) console.error('Error deleting old photo:', err);
-      });
+      await fs.promises.unlink(photoPath);
     }
+  } catch (error) {
+    console.error('Error deleting old photo:', error);
   }
 };
 
