@@ -104,6 +104,10 @@ const userSchema = new mongoose.Schema({
     enum: ['student','jury','member','admin'],
     default: 'student'
   },
+  deviceTokens: {
+    type: [String],
+    default: []
+  },
   active: {
     type: Boolean,
     default: true,

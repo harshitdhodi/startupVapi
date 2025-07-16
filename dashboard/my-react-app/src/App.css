@@ -17,9 +17,9 @@
 }
 
 /* Smooth transitions */
-* {
+/* * {
   transition: all 0.2s ease-in-out;
-}
+} */
 
 /* Custom orange theme utilities */
 .text-orange-primary {

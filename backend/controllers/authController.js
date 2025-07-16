@@ -180,20 +180,11 @@ const login = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email });
   console.log('user', user ? user._id.toString() : 'not found');
 
-  // if (!user || !(await user.correctPassword(password, user.password))) {
-  //   return next(new AppError('Incorrect email or password', 401));
-  // }
-
   // 4) If everything is ok, create token and send to client
   const token = createToken(user._id.toString());
-  console.log('token', token);
+  // console.log('token', token);
 
-  res.cookie('jwt', token, {
-    httpOnly: false,
-    sameSite: 'None',
-    secure: false, // Set to true in production with HTTPS
-  });
-
+  res.cookie('jwt', token);
   // Remove sensitive data from output
   user.password = undefined;
 

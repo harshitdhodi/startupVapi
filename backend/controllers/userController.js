@@ -157,6 +157,18 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
   });
 });
 
+// Get all admin users
+exports.getAdminUsers = catchAsync(async (req, res, next) => {
+  const adminUsers = await User.find({ role: 'admin' });
+  res.status(200).json({
+    status: 'success',
+    results: adminUsers.length,
+    data: {
+      users: adminUsers
+    }
+  });
+});
+
 exports.getUserVerificationStatus = catchAsync(async (req, res, next) => {
   const user = await User.findById(req.params.id).select('isVerified');
   console.log('User ID from params:', req.params.id);
