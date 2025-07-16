@@ -104,7 +104,7 @@ exports.updateUser = catchAsync(async (req, res, next) => {
 
   // Create filteredBody with only allowed fields
   const filteredBody = {};
-  const allowedFields = ['firstName', 'lastName', 'email', 'photo', 'mobile', 'DOB', 'gender'];
+  const allowedFields = ['firstName', 'lastName', 'email', 'photo', 'mobile', 'DOB', 'gender',"isVerified"];
 
   // Add fields from req.body to filteredBody
   Object.keys(req.body).forEach(key => {
