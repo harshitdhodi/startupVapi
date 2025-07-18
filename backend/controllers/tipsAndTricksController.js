@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const TipsAndTricks = require('../models/TipsAndTricks');
 const asyncHandler = require('express-async-handler');
-const { uploadUserPhoto, resizeUserPhoto } = require('../middleware/uploadPhoto');
+const { uploadBanner, resizeUserPhoto } = require('../middleware/uploadBanner');
 const AppError = require('../utils/appError');
 
 // @desc    Create new tips and tricks with banner
@@ -11,7 +11,7 @@ const AppError = require('../utils/appError');
 exports.createTipsAndTricks = [
   // Handle file upload
   (req, res, next) => {
-    uploadUserPhoto(req, res, function(err) {
+    uploadBanner(req, res, function(err) {
       if (err) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return next(new AppError('File size is too large. Maximum size is 5MB', 400));
@@ -156,7 +156,7 @@ exports.getTipsAndTricks = asyncHandler(async (req, res, next) => {
 // @route   PATCH /api/tips-and-tricks/:id
 // @access  Private/Admin
 exports.updateTipsAndTricks = [
-  uploadUserPhoto,
+  uploadBanner,
   resizeUserPhoto,
   asyncHandler(async (req, res, next) => {
     const updateData = { ...req.body };

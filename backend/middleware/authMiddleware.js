@@ -1,33 +1,31 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const AppError = require('../utils/appError');
-const catchAsync = require('./errorHandler').catchAsync;
 
 // Protect routes - user must be logged in
 exports.protect = async (req, res, next) => {
   try {
+    // 1) Get token and check if it exists
     let token;
-    
-    // 1) Get token from header
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith('Bearer')
+    ) {
       token = req.headers.authorization.split(' ')[1];
-    }
-    // Or get from cookies
-    else if (req.cookies.token) {
-      token = req.cookies.token;
+    } else if (req.cookies.jwt) {
+      token = req.cookies.jwt;
     }
 
-    // 2) Check if token exists
     if (!token) {
       return next(
         new AppError('You are not logged in! Please log in to get access.', 401)
       );
     }
 
-    // 3) Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // 2) Verify token
+    const decoded = await jwt.verify(token, 'secret');
 
-    // 4) Check if user still exists
+    // 3) Check if user still exists
     const currentUser = await User.findById(decoded.id);
     if (!currentUser) {
       return next(
@@ -35,62 +33,23 @@ exports.protect = async (req, res, next) => {
       );
     }
 
-    // 5) Grant access to protected route
+    // GRANT ACCESS TO PROTECTED ROUTE
     req.user = currentUser;
+    res.locals.user = currentUser;
     next();
   } catch (err) {
-    return next(new AppError('Invalid token. Please log in again!', 401));
+    return next(new AppError('You are not authorized to access this route', 401));
   }
 };
 
-// Restrict to admin
-exports.admin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
-    return next();
-  }
-  return next(new AppError('You do not have permission to perform this action', 403));
-};
-
-// Check if user is logged in (for frontend use)
-/**
- * @desc    Require authentication middleware
- * @access  Private
- */
-exports.requireAuth = catchAsync(async (req, res, next) => {
-    const token = req.cookies.jwt;
-    
-    if (!token) {
-        console.log("Can't redirect: Unauthorized user");
-        throw new AppError('Unauthenticated user', 401);
+// Restrict certain routes to specific roles
+exports.restrictTo = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return next(
+        new AppError('You do not have permission to perform this action', 403)
+      );
     }
-    
-    const decodedToken = await jwt.verify(token, process.env.JWT_SECRET || 'secret');
-    req.user = { id: decodedToken.id };
     next();
-});
-
-/**
- * @desc    Check if user is logged in (for frontend use)
- * @access  Public
- */
-exports.isLoggedIn = async (req, res, next) => {
-  if (req.cookies.token) {
-    try {
-      // 1) Verify token
-      const decoded = await jwt.verify(req.cookies.token, process.env.JWT_SECRET);
-
-      // 2) Check if user still exists
-      const currentUser = await User.findById(decoded.id);
-      if (!currentUser) {
-        return next();
-      }
-
-      // 3) There is a logged in user
-      res.locals.user = currentUser;
-      return next();
-    } catch (err) {
-      return next();
-    }
-  }
-  next();
+  };
 };

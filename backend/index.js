@@ -26,15 +26,7 @@ const app = express();
 // Enable CORS
 app.use(cors());
 
-// Request logging middleware
-app.use((req, res, next) => {
-  console.log('Incoming Request:', {
-    method: req.method,
-    url: req.originalUrl,
-    headers: req.headers
-  });
-  next();
-});
+app.use(globalErrorHandler);
 
 // Parse JSON and URL-encoded bodies
 app.use(express.json());
@@ -120,6 +112,9 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/userRoutes'));
 app.use('/api/event', require('./routes/eventRoutes'));
 app.use('/api/event-details', require('./routes/eventDetailsRoutes'));
+//events registration for startup event
+app.use('/api/startup-event', require('./routes/startupEventRoutes'));
+app.use('/api/video-lesson', require('./routes/videoLesson'));
 app.use('/api/tips-and-tricks', require('./routes/tipsAndTricksRoutes'));
 app.use('/api/image', require('./routes/imageRoutes'));
 

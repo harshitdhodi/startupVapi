@@ -5,7 +5,7 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 
 // Create a new user
-exports.createUser = catchAsync(async (req, res, next) => {
+const createUser = catchAsync(async (req, res, next) => {
   try {
     console.log('Request body:', req.body);
 
@@ -69,7 +69,7 @@ exports.createUser = catchAsync(async (req, res, next) => {
 });
 
 // Get all users
-exports.getAllUsers = catchAsync(async (req, res, next) => {
+const getAllUsers = catchAsync(async (req, res, next) => {
   console.log('Request body:');
   const users = await User.find();
   res.status(200).json({
@@ -82,7 +82,7 @@ exports.getAllUsers = catchAsync(async (req, res, next) => {
 });
 
 // Get single user
-exports.getUser = catchAsync(async (req, res, next) => {
+const getUser = catchAsync(async (req, res, next) => {
   const user = await User.findById(req.params.id);
   
   if (!user) {
@@ -98,13 +98,13 @@ exports.getUser = catchAsync(async (req, res, next) => {
 });
 
 // Update user
-exports.updateUser = catchAsync(async (req, res, next) => {
+const updateUser = catchAsync(async (req, res, next) => {
   console.log('Request body:', req.body);
   console.log('Uploaded file:', req.file);
 
   // Create filteredBody with only allowed fields
   const filteredBody = {};
-  const allowedFields = ['firstName', 'lastName', 'email', 'photo', 'mobile', 'DOB', 'gender',"isVerified"];
+  const allowedFields = ['firstName', 'lastName', 'email', 'photo', 'mobile', 'DOB', 'gender', 'isVerified'];
 
   // Add fields from req.body to filteredBody
   Object.keys(req.body).forEach(key => {
@@ -166,7 +166,7 @@ exports.updateUser = catchAsync(async (req, res, next) => {
 });
 
 // Delete user
-exports.deleteUser = catchAsync(async (req, res, next) => {
+const deleteUser = catchAsync(async (req, res, next) => {
   const user = await User.findByIdAndDelete(req.params.id);
   
   if (!user) {
@@ -180,7 +180,7 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
 });
 
 // Get all admin users
-exports.getAdminUsers = catchAsync(async (req, res, next) => {
+const getAdminUsers = catchAsync(async (req, res, next) => {
   const adminUsers = await User.find({ role: 'admin' });
   res.status(200).json({
     status: 'success',
@@ -191,7 +191,8 @@ exports.getAdminUsers = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.getUserVerificationStatus = catchAsync(async (req, res, next) => {
+// Get user verification status
+const getUserVerificationStatus = catchAsync(async (req, res, next) => {
   const user = await User.findById(req.params.id).select('isVerified');
   console.log('User ID from params:', req.params.id);
   console.log('Found user:', user);
@@ -200,10 +201,21 @@ exports.getUserVerificationStatus = catchAsync(async (req, res, next) => {
     return next(new AppError('No user found with that ID', 404));
   }
   
-  res.status(201).json({
+  res.status(200).json({
     status: 'success',
     data: {
       isVerified: user.isVerified
     }
   });
 });
+
+// Export all functions at the end
+module.exports = {
+  createUser,
+  getAllUsers,
+  getUser,
+  updateUser,
+  deleteUser,
+  getAdminUsers,
+  getUserVerificationStatus
+};
