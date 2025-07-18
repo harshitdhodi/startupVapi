@@ -16,21 +16,42 @@ const registerForStartupEvent = async (req, res, next) => {
     // Parse form data with teamMembers[0].fieldName format
     const { eventId, p_title, p_description, total_fees, ...rest } = req.body;
     
+    // Helper function to parse DD/MM/YYYY format to valid Date
+    const parseDate = (dateString) => {
+      const parts = dateString.split('/');
+      if (parts.length !== 3) return null;
+      
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed in JavaScript
+      const year = parseInt(parts[2], 10);
+      
+      return new Date(year, month, day);
+    };
+    
     // Extract team members from the form data
     const teamMembers = [];
     let i = 0;
     while (rest[`teamMembers[${i}].name`]) {
+      const dobString = rest[`teamMembers[${i}].DOB`];
+      const parsedDOB = parseDate(dobString);
+      
+      if (!parsedDOB || isNaN(parsedDOB.getTime())) {
+        return next(new AppError(`Team member ${i + 1}: Invalid date format. Use DD/MM/YYYY format`, 400));
+      }
+      
       teamMembers.push({
         name: rest[`teamMembers[${i}].name`],
         email: rest[`teamMembers[${i}].email`] || `${rest[`teamMembers[${i}].name`].toLowerCase().replace(/\s+/g, '')}@example.com`,
-        DOB: rest[`teamMembers[${i}].DOB`],
+        DOB: parsedDOB, // Use parsed date
         gender: rest[`teamMembers[${i}].gender`],
-        college_name: rest[`teamMembers[${i}].collage_name`],
+        college_name: rest[`teamMembers[${i}].collage_name`], // Note: keeping the typo as it matches your form field
         designation: rest[`teamMembers[${i}].designation`]
       });
       i++;
     }
-console.log(teamMembers);x
+    
+    console.log('Parsed team members:', teamMembers);
+    
     const projectDetails = {
       p_title,
       p_description,
@@ -48,11 +69,6 @@ console.log(teamMembers);x
 
     if (!p_title || !p_description || !total_fees) {
       return next(new AppError('All project details (title, description, fees) are required', 400));
-    }
-
-    // Validate eventId is a valid ObjectId
-    if (!mongoose.isValidObjectId(eventId)) {
-      return next(new AppError('Invalid event ID format', 400));
     }
 
     // Validate team member fields
@@ -78,11 +94,7 @@ console.log(teamMembers);x
         return next(new AppError(`Team member ${i + 1}: Invalid gender value`, 400));
       }
 
-      // Validate DOB
-      const dobDate = new Date(DOB);
-      if (isNaN(dobDate.getTime())) {
-        return next(new AppError(`Team member ${i + 1}: Invalid date of birth`, 400));
-      }
+      // DOB validation is already done above during parsing
     }
 
     // Validate total_fees is a non-negative number
@@ -110,12 +122,10 @@ console.log(teamMembers);x
     const registration = await StartupEventCandidate.create({
       eventId,
       teamMembers,
-      projectDetails: {
-        p_title: p_title.trim(),
-        p_description: p_description.trim(),
-        total_fees: feesNumber,
-      },
-      video: req.file.path  // Save video path at root level as per model
+      p_title: p_title.trim(),
+      p_description: p_description.trim(),
+      total_fees: feesNumber,
+      video: req.file.filename  // Save video path at root level as per model
     });
 
     // Respond with success
