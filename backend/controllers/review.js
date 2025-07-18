@@ -140,7 +140,6 @@ exports.deleteReview = async (req, res) => {
     }
 };
 
-
 // Get all reviews by user ID
 exports.getUserReviews = async (req, res) => {
     try {
