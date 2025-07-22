@@ -159,43 +159,147 @@ const verifyOTP = catchAsync(async (req, res, next) => {
 });
 
 /**
- * @desc    Login user with email and password
+ * @desc    Login user with mobile number (sends OTP)
  * @route   POST /api/auth/login
  * @access  Public
  */
+const login = catchAsync(async (req, res, next) => {
+  console.log('Login request:', req.body);
+  const { countryCode, mobileNumber } = req.body;
+
+  if (!countryCode || !mobileNumber) {
+    return next(new AppError('Country code and mobile number are required', 400));
+  }
+
+  // Validate mobile number format
+  if (!/^\d{10,15}$/.test(mobileNumber)) {
+    return next(new AppError('Please provide a valid mobile number', 400));
+  }
+  
+  try {
+    // Check if user exists with this mobile number
+    let user = await User.findOne({ 'mobile.number': mobileNumber });
+    
+    // If user doesn't exist, create a new user
+    if (!user) {
+      user = await User.create({
+        mobile: {
+          countryCode,
+          number: mobileNumber
+        },
+        name: `User-${Date.now()}` // Default name, can be updated later
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    
+    // Format full mobile number for OTP
+    const fullMobile = `${countryCode}${mobileNumber}`;
+    
+    // Delete any existing OTPs for this mobile
+    await OTP.deleteMany({ mobile: fullMobile });
+    
+    // Save new OTP to database
+    const otpDoc = new OTP({
+      mobile: fullMobile,
+      otp
+    });
+    
+    await otpDoc.save();
+    
+    // Send OTP via SMS
+    await sendOTPviaSMS(fullMobile, otp);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'OTP sent successfully',
+      data: {
+        mobile: {
+          countryCode,
+          number: mobileNumber
+        },
+        // Only send OTP in development for testing
+        otp: process.env.NODE_ENV === 'development' ? otp : undefined
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return next(new AppError('Failed to process login', 500));
+  }
+});
+
+/**
+ * @desc    Verify OTP and complete login
+ * @route   POST /api/auth/verify-login
+ * @access  Public
+ */
+const verifyLogin = catchAsync(async (req, res, next) => {
+  const { countryCode, mobileNumber, otp } = req.body;
+  
+  if (!countryCode || !mobileNumber || !otp) {
+    return next(new AppError('Country code, mobile number, and OTP are required', 400));
+  }
+
+  try {
+    const fullMobile = `${countryCode}${mobileNumber}`;
+    
+    // Find the OTP document
+    const otpDoc = await OTP.findOne({ 
+      mobile: fullMobile,
+      otp: otp.trim()
+    });
+    
+    if (!otpDoc) {
+      return next(new AppError('Invalid or expired OTP', 400));
+    }
+
+    // Find or create user
+    let user = await User.findOne({ 'mobile.number': mobileNumber });
+    
+    if (!user) {
+      // This should theoretically never happen since we create user in login
+      user = await User.create({
+        mobile: {
+          countryCode,
+          number: mobileNumber
+        },
+        name: `User-${Date.now()}`
+      });
+    }
+
+    // Delete the used OTP
+    await OTP.findByIdAndDelete(otpDoc._id);
+    
+    // Create JWT token
+    const token = createToken(user._id.toString());
+    
+    // Set JWT in cookie
+    res.cookie('jwt', token, {
+      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production'
+    });
+    
+    // Remove sensitive data from output
+    user.password = undefined;
+
+    res.status(200).json({
+      status: 'success',
+      token,
+      data: {
+        user
+      }
+    });
+  } catch (error) {
+    console.error('Verify login error:', error);
+    return next(new AppError('Failed to verify login', 500));
+  }
+});
+
 const createToken = (id) => {
   return jwt.sign({ id }, 'secret');
 };
-
-const login = catchAsync(async (req, res, next) => {
-  console.log('Request body:', req.body); // Debug log
-  const { email, password } = req.body;
-
-  // 1) Check if email and password exist
-  if (!email || !password) {
-    return next(new AppError('Please provide email and password!', 400));
-  }
-
-  // 2) Check if user exists and password is correct
-  const user = await User.findOne({ email });
-  console.log('user', user ? user._id.toString() : 'not found');
-
-  // 4) If everything is ok, create token and send to client
-  const token = createToken(user._id.toString());
-  // console.log('token', token);
-
-  res.cookie('jwt', token);
-  // Remove sensitive data from output
-  user.password = undefined;
-
-  res.status(200).json({
-    status: 'success',
-    token,
-    data: {
-      user,
-    },
-  });
-});
 
 // Add correctPassword method to User model if not exists
 if (!User.prototype.correctPassword) {
@@ -208,5 +312,6 @@ if (!User.prototype.correctPassword) {
 module.exports = {
   sendOTP,
   verifyOTP,
-  login
+  login,
+  verifyLogin
 };

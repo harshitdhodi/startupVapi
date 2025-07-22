@@ -3,12 +3,12 @@ const {
   createUser, 
   getAllUsers, 
   getAdminUsers, 
-  getUserVerificationStatus, 
+  getUserVerificationStatus,    
   getUser, 
   updateUser, 
   deleteUser 
 } = require('../controllers/userController');
-const { login } = require('../controllers/authController');
+const { login, verifyLogin } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 const { uploadUserPhoto, resizeUserPhoto } = require('../middleware/uploadPhoto');
 
@@ -17,6 +17,7 @@ const router = express.Router();
 // Public routes (no authentication required)
 router.post('/add', createUser);
 router.post('/login', login);
+router.post('/verify-login', verifyLogin);
 
 // Protected routes (requires authentication)
 router.get('/', protect, getAllUsers);

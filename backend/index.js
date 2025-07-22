@@ -26,11 +26,12 @@ const app = express();
 // Enable CORS
 app.use(cors());
 
-app.use(globalErrorHandler);
-
-// Parse JSON and URL-encoded bodies
+// Parse JSON bodies
 app.use(express.json());
+// Parse URL-encoded bodies
 app.use(express.urlencoded({ extended: true }));
+
+app.use(globalErrorHandler);
 
 // Store raw body for text/plain requests
 app.use((req, res, next) => {
@@ -120,6 +121,7 @@ app.use('/api/image', require('./routes/imageRoutes'));
 app.use('/api/reminder', require('./routes/reminder'));
 app.use('/api/review', require('./routes/review'));
 app.use('/api/video', require('./routes/videoView'));
+app.use('/api/event-payment', require('./routes/eventPaymentRoutes'));
 // Static frontend serving (e.g., from React/Vite build)
 const frontendPath = path.join(__dirname, 'dist');
 app.use(express.static(frontendPath));
