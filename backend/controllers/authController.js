@@ -164,22 +164,22 @@ const verifyOTP = catchAsync(async (req, res, next) => {
  * @access  Public
  */
 const login = catchAsync(async (req, res, next) => {
-  console.log('Login request:', req.body);
-  const { countryCode, mobileNumber } = req.body;
 
-  if (!countryCode || !mobileNumber) {
-    return next(new AppError('Country code and mobile number are required', 400));
-  }
-
-  // Validate mobile number format
-  if (!/^\d{10,15}$/.test(mobileNumber)) {
-    return next(new AppError('Please provide a valid mobile number', 400));
-  }
-  
   try {
+    const { countryCode, mobileNumber } = req.body;
+  
+    if (!countryCode || !mobileNumber) {
+      return next(new AppError('Country code and mobile number are required', 400));
+    }
+  
+    // Validate mobile number format
+    if (!/^\d{10,15}$/.test(mobileNumber)) {
+      return next(new AppError('Please provide a valid mobile number', 400));
+    }
+    console.log('Login request:', req.body);
     // Check if user exists with this mobile number
     let user = await User.findOne({ 'mobile.number': mobileNumber });
-    
+    console.log('User found:', user); 
     // If user doesn't exist, create a new user
     if (!user) {
       user = await User.create({
@@ -187,8 +187,15 @@ const login = catchAsync(async (req, res, next) => {
           countryCode,
           number: mobileNumber
         },
-        name: `User-${Date.now()}` // Default name, can be updated later
+        name: `User-${Date.now()}`, // Default name, can be updated later
+        isVerified: true // Set new users as verified by default
       });
+    } else {
+      // Only check verification status for existing users
+      console.log('User verification status:', user.isVerified);
+      if (user.isVerified === false) {
+        return next(new AppError('This account is not verified. Please contact support for assistance.', 403));
+      }
     }
 
     // Generate OTP
