@@ -44,7 +44,7 @@ const registerForStartupEvent = async (req, res, next) => {
         email: rest[`teamMembers[${i}].email`] || `${rest[`teamMembers[${i}].name`].toLowerCase().replace(/\s+/g, '')}@example.com`,
         DOB: parsedDOB, // Use parsed date
         gender: rest[`teamMembers[${i}].gender`],
-        college_name: rest[`teamMembers[${i}].collage_name`], // Note: keeping the typo as it matches your form field
+        college_name: rest[`teamMembers[${i}].college_name`], // Note: keeping the typo as it matches your form field
         designation: rest[`teamMembers[${i}].designation`]
       });
       i++;

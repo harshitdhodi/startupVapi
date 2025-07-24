@@ -1,74 +1,63 @@
 const Event = require('../models/Event');
 const asyncHandler = require('express-async-handler');
 const AppError = require('../utils/appError');
-const { uploadUserPhoto, resizeUserPhoto, deleteOldPhoto } = require('../middleware/uploadPhoto');
 
-// @desc    Upload event banner
-// @route   POST /api/events/upload-banner
-// @access  Private/Admin
-exports.uploadEventBanner = [
-  uploadUserPhoto,
-  resizeUserPhoto,
-  asyncHandler(async (req, res, next) => {
-    const banners = req.files && req.files['banner'] ? req.files['banner'].map(file => file.filename) : [];
-    
-    if (banners.length === 0) {
+exports.createEvent = asyncHandler(async (req, res, next) => {
+  try {
+    console.log('Request body:', req.body);
+    console.log('Uploaded file:', req.file);
+
+    const {
+      date,
+      time,
+      location,
+      description,
+      prize,
+      lastDate,
+      eventId,
+      youtubeLinks,
+      youtubeLink // For backward compatibility
+    } = req.body;
+
+    // Get the banner filename from the uploaded file
+    const banner = req.file ? req.file.filename : null;
+
+    if (!banner) {
       return next(new AppError('Please upload a banner image', 400));
     }
-    
-    // Get the first uploaded banner (assuming single file upload)
-    const banner = banners[0];
-    
-    res.status(200).json({
+
+    // Prepare event data
+    const eventData = {
+      date: moment(date, 'DD/MM/YYYY').toDate(),
+      time,
+      location,
+      description,
+      prize: Number(prize),
+      lastDate: moment(lastDate, 'DD/MM/YYYY').toDate(),
+      eventId,
+      banner,
+    };
+
+    // Handle youtubeLinks
+    if (youtubeLinks) {
+      eventData.youtubeLinks = Array.isArray(youtubeLinks) 
+        ? youtubeLinks 
+        : [youtubeLinks];
+    } else if (youtubeLink) {
+      eventData.youtubeLinks = [youtubeLink];
+    }
+
+    const event = await Event.create(eventData);
+
+    res.status(201).json({
       status: 'success',
-      data: {
-        banner
-      }
+      data: { event }
     });
-  })
-];
 
-// @desc    Create a new event
-// @route   POST /api/events
-// @access  Private/Admin
-exports.createEvent = asyncHandler(async (req, res, next) => {
-  const {
-    name,
-    max_seats,
-    isStartUpVapiEvent = false,
-    banner, // This should be the filename returned from uploadEventBanner
-    date,
-    time,
-    location,
-    description,
-    youtubeLinks = [],
-    prize,
-    lastDate
-  } = req.body;
-  
-  // Validate required fields
-  if (!banner) {
-    return next(new AppError('Please upload a banner image first', 400));
+  } catch (error) {
+    console.error('Error creating event:', error);
+    next(error);
   }
-  
-  const event = await Event.create({
-    name,
-    max_seats,
-    isStartUpVapiEvent,
-    banner,
-    date,
-    time,
-    location,
-    description,
-    youtubeLinks,
-    prize,
-    lastDate: new Date(lastDate)
-  });
-
-  res.status(201).json({
-    success: true,
-    data: event
-  });
 });
 
 // @desc    Get all events
