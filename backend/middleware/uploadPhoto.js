@@ -32,8 +32,10 @@ const resizeUserPhoto = catchAsync(async (req, res, next) => {
   if (!req.file) return next(); 
 
   try {
-    // Create filename with user ID and timestamp
-    const filename = `user-${req.user.id}-${Date.now()}.jpeg`;
+    // Create filename with user ID if available, otherwise use timestamp
+    const filename = req.user 
+      ? `user-${req.user.id}-${Date.now()}.jpeg`
+      : `event-banner-${Date.now()}.jpeg`;
     
     // Create directory if it doesn't exist
     const uploadDir = path.join(__dirname, '../public/img/events');

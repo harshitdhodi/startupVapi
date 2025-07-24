@@ -14,48 +14,90 @@ exports.createEvent = asyncHandler(async (req, res, next) => {
       description,
       prize,
       lastDate,
-      eventId,
+      name,
       youtubeLinks,
-      youtubeLink // For backward compatibility
+      youtubeLink, // For backward compatibility
+      max_seats
     } = req.body;
 
-    // Get the banner filename from the uploaded file
-    const banner = req.file ? req.file.filename : null;
+    // Fix: Handle banner filename properly
+    let banner = null;
+    if (req.file) {
+      // Use filename if available (diskStorage), otherwise use originalname
+      banner = req.file.filename || req.file.originalname;
+    }
 
     if (!banner) {
       return next(new AppError('Please upload a banner image', 400));
     }
 
+    // Validate required fields
+    if (!name || !date || !time || !location || !description || !prize || !lastDate || !max_seats) {
+      return next(new AppError('Please provide all required fields', 400));
+    }
+
+    // Parse and validate dates
+    const parsedDate = moment(date, 'DD/MM/YYYY', true);
+    const parsedLastDate = moment(lastDate, 'DD/MM/YYYY', true);
+
+    if (!parsedDate.isValid()) {
+      return next(new AppError('Invalid event date format. Use DD/MM/YYYY', 400));
+    }
+
+    if (!parsedLastDate.isValid()) {
+      return next(new AppError('Invalid last registration date format. Use DD/MM/YYYY', 400));
+    }
+
     // Prepare event data
     const eventData = {
-      date: moment(date, 'DD/MM/YYYY').toDate(),
-      time,
-      location,
-      description,
-      prize: Number(prize),
-      lastDate: moment(lastDate, 'DD/MM/YYYY').toDate(),
-      eventId,
+      date: parsedDate.toDate(),
+      time: time.trim(),
+      location: location.trim(),
+      description: description.trim(),
+      prize: prize, // Keep as string to match schema
+      lastDate: parsedLastDate.toDate(),
+      name: name.trim(),
       banner,
+      max_seats: Number(max_seats) || 0,
     };
 
     // Handle youtubeLinks
     if (youtubeLinks) {
-      eventData.youtubeLinks = Array.isArray(youtubeLinks) 
-        ? youtubeLinks 
-        : [youtubeLinks];
+      eventData.youtubeLinks = Array.isArray(youtubeLinks) ? youtubeLinks : [youtubeLinks];
     } else if (youtubeLink) {
       eventData.youtubeLinks = [youtubeLink];
+    } else {
+      eventData.youtubeLinks = []; // Provide empty array if no links
     }
 
+    console.log('Event data to be saved:', eventData);
+
+    // Create the event
     const event = await Event.create(eventData);
+    
+    console.log('Event created successfully:', event);
 
     res.status(201).json({
       status: 'success',
-      data: { event }
+      data: {
+        event
+      }
     });
 
   } catch (error) {
     console.error('Error creating event:', error);
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return next(new AppError(`Validation Error: ${errors.join('. ')}`, 400));
+    }
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return next(new AppError('Event with this name already exists', 400));
+    }
+    
     next(error);
   }
 });
