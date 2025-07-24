@@ -21,7 +21,7 @@ const EventRegistrationForm = ({ event, onClose, onSubmit, isCreateMode = false 
     lastDate: isCreateMode ? '' : event?.lastDate?.split('T')[0] || '',
     youtubeLinks: isCreateMode ? [''] : event?.youtubeLinks || [''],
   });
-  
+const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bannerFile, setBannerFile] = useState(null);
   const [bannerPreview, setBannerPreview] = useState('');
@@ -66,101 +66,53 @@ const EventRegistrationForm = ({ event, onClose, onSubmit, isCreateMode = false 
       // Create a preview URL for the image
       const previewUrl = URL.createObjectURL(file);
       setBannerPreview(previewUrl);
-      // Clean up the preview URL when component unmounts
-      return () => URL.revokeObjectURL(previewUrl);
     }
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+  
     try {
-      const endpoint = isCreateMode ? '/api/startup-event/create' : '/api/startup-event/register';
-      
-      if (isCreateMode) {
-        const formDataToSend = new FormData();
-        
-        // Add file if it exists
-        if (bannerFile) {
-          formDataToSend.append('banner', bannerFile);
-        }
-        // Add other form data
-        formDataToSend.append('eventName', formData.eventName);
-        formDataToSend.append('description', formData.description);
-        formDataToSend.append('date', formData.date);
-        formDataToSend.append('time', formData.time);
-        formDataToSend.append('location', formData.location);
-        formDataToSend.append('prize', formData.prize);
-        formDataToSend.append('lastDate', formData.lastDate);
-        
-        // Add YouTube links as JSON string
-        formDataToSend.append('youtubeLinks', JSON.stringify(
-          formData.youtubeLinks.filter(link => link.trim() !== '')
-        ));
-        
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          // Don't set Content-Type header - let the browser set it with the correct boundary
-          headers: {
-            'Accept': 'application/json',
-            // 'Authorization': `Bearer ${yourAuthToken}` // Add if using authentication
-          },
-          body: formDataToSend,
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.message || 'Failed to create event');
-        }
-
-        toast({
-          title: 'Success!',
-          description: 'Event created successfully!',
-          variant: 'default',
-        });
-        
-        onSubmit?.(result);
-        onClose();
-      } else {
-        // Handle registration (non-file upload)
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            eventId: event?._id,
-            eventName: event?.eventId?.name
-          }),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.message || 'Failed to register for event');
-        }
-
-        toast({
-          title: 'Success!',
-          description: 'You have successfully registered for the event.',
-          variant: 'default',
-        });
-        
-        onSubmit?.(result);
-        onClose();
+      const formDataToSend = new FormData();
+  
+      // Add all form fields to FormData
+      formDataToSend.append('date', formData.date);
+      formDataToSend.append('time', formData.time);
+      formDataToSend.append('location', formData.location);
+      formDataToSend.append('description', formData.description);
+      formDataToSend.append('prize', formData.prize);
+      formDataToSend.append('lastDate', formData.lastDate);
+      formDataToSend.append('eventId', formData.eventId);
+  
+      // Add banner file if it exists
+      if (bannerFile) {
+        formDataToSend.append('banner', bannerFile);
       }
-    } catch (error) {
-      console.error('Error:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'An error occurred. Please try again.',
-        variant: 'destructive',
+  
+      // Add youtube links from the formData state, not the FormData object
+      formData.youtubeLinks.forEach((link) => {
+        if (link) {
+          formDataToSend.append('youtubeLinks', link);
+        }
       });
+  
+      const response = await fetch('/api/event-details', {
+        method: 'POST',
+        body: formDataToSend, // Use the correct FormData instance
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create event');
+      }
+  
+      const result = await response.json();
+      onSubmit?.(result);
+      onClose();
+  
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      setErrors({ submit: error.message || 'Failed to submit form' });
     } finally {
       setIsSubmitting(false);
     }
@@ -180,7 +132,7 @@ const EventRegistrationForm = ({ event, onClose, onSubmit, isCreateMode = false 
           placeholder="Enter your full name"
         />
       </div>
-      
+
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
         <Input
@@ -193,7 +145,7 @@ const EventRegistrationForm = ({ event, onClose, onSubmit, isCreateMode = false 
           placeholder="Enter your email"
         />
       </div>
-      
+
       <div className="space-y-2">
         <Label htmlFor="phone">Phone Number</Label>
         <Input
@@ -249,7 +201,7 @@ const EventRegistrationForm = ({ event, onClose, onSubmit, isCreateMode = false 
             onChange={handleChange}
           />
         </div>
-        
+
         <div className="space-y-2">
           <Label htmlFor="time">Event Time</Label>
           <Input
@@ -279,19 +231,19 @@ const EventRegistrationForm = ({ event, onClose, onSubmit, isCreateMode = false 
       <div className="space-y-2">
         <Label htmlFor="banner">Banner Image</Label>
         <div className="flex flex-col gap-2">
-          <Input
-            id="banner"
-            name="banner"
+          <input
             type="file"
             accept="image/*"
             onChange={handleFileChange}
-            className="cursor-pointer"
+            className="form-control"
+            id="banner"
+            required
           />
           {bannerPreview && (
             <div className="mt-2">
-              <img 
-                src={bannerPreview} 
-                alt="Banner preview" 
+              <img
+                src={bannerPreview}
+                alt="Banner preview"
                 className="h-32 w-auto object-cover rounded-md border"
               />
             </div>
@@ -353,7 +305,7 @@ const EventRegistrationForm = ({ event, onClose, onSubmit, isCreateMode = false 
             placeholder="Enter prize details"
           />
         </div>
-        
+
         <div className="space-y-2">
           <Label htmlFor="lastDate">Last Date for Registration</Label>
           <Input
@@ -380,26 +332,26 @@ const EventRegistrationForm = ({ event, onClose, onSubmit, isCreateMode = false 
             <X className="h-5 w-5" />
           </Button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {isCreateMode ? renderEventFields() : renderRegistrationFields()}
-          
+
           <div className="pt-4 flex justify-end gap-3">
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               variant="outline"
               onClick={onClose}
               disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="bg-orange-500 hover:bg-orange-600"
               disabled={isSubmitting}
             >
-              {isSubmitting 
-                ? (isCreateMode ? 'Creating...' : 'Registering...') 
+              {isSubmitting
+                ? (isCreateMode ? 'Creating...' : 'Registering...')
                 : (isCreateMode ? 'Create Event' : 'Register for Event')}
             </Button>
           </div>

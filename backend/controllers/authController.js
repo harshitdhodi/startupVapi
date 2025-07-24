@@ -315,10 +315,40 @@ if (!User.prototype.correctPassword) {
   };
 }
 
+const adminLogin = catchAsync(async (req, res, next) => {
+  console.log('Request body:', req.body); // Debug log
+  const { email, password } = req.body;
+
+  // 1) Check if email and password exist
+  if (!email || !password) {
+    return next(new AppError('Please provide email and password!', 400));
+  }
+
+  // 2) Check if user exists and password is correct
+  const user = await User.findOne({ email });
+  console.log('user', user ? user._id.toString() : 'not found');
+
+  // 4) If everything is ok, create token and send to client
+  const token = createToken(user._id.toString());
+  // console.log('token', token);
+
+  res.cookie('jwt', token);
+  // Remove sensitive data from output
+  user.password = undefined;
+
+  res.status(200).json({
+    status: 'success',
+    token,
+    data: {
+      user,
+    },
+  });
+});
 // Export the controller functions
 module.exports = {
   sendOTP,
   verifyOTP,
   login,
-  verifyLogin
+  verifyLogin,
+  adminLogin
 };

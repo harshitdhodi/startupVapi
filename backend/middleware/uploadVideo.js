@@ -35,6 +35,7 @@ const storage = multer.diskStorage({
 
 // File filter to allow only MP4 files
 const fileFilter = (req, file, cb) => {
+  console.log('File received:', file);
   const allowedMimeTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo'];
   
   if (allowedMimeTypes.includes(file.mimetype)) {

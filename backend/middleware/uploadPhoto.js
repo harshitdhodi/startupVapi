@@ -36,7 +36,7 @@ const resizeUserPhoto = catchAsync(async (req, res, next) => {
     const filename = `user-${req.user.id}-${Date.now()}.jpeg`;
     
     // Create directory if it doesn't exist
-    const uploadDir = path.join(__dirname, '../public/img/users');
+    const uploadDir = path.join(__dirname, '../public/img/events');
     
     // Ensure directory exists with proper permissions
     if (!fs.existsSync(uploadDir)) {
@@ -70,7 +70,7 @@ const resizeUserPhoto = catchAsync(async (req, res, next) => {
 const deleteOldPhoto = async (photo) => {
   if (!photo) return;
   
-  const photoPath = path.join(__dirname, '../public/img/users', photo);
+  const photoPath = path.join(__dirname, '../public/img/events', photo);
   
   try {
     if (fs.existsSync(photoPath)) {

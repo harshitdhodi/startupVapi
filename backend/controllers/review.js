@@ -145,10 +145,7 @@ exports.getUserReviews = async (req, res) => {
     try {
         const { userId } = req.query;
         
-        const reviews = await Review.find({ userId })
-            .populate('eventId', 'title') // Populate event details
-            .sort({ createdAt: -1 }); // Sort by newest first
-
+        const reviews = await Review.find({ userId }).populate('eventId', 'name').populate('userId', 'photo').sort({ createdAt: -1 });
         res.status(200).json({
             success: true,
             count: reviews.length,

@@ -17,7 +17,10 @@ import ForgotPassword from "./auth/ForgotPassword";
 import OtpVerification from "./auth/OtpVerification";
 import ResetPassword from "./auth/ResetPassword";
 import "./App.css";
-
+import UserProfileDetails from "./components/userDetails/UserProfileDetails";
+import UserProfileList from "./components/userDetails/UserProfileList";
+import DashboardLayout from './layouts/DashboardLayout';
+import UserForm from "./components/userDetails/UserForm";
 // Component to handle route rendering based on auth state
 const AppRoutes = () => {
   const { isLoggedIn, loading } = useContext(AuthContext);
@@ -39,16 +42,20 @@ const AppRoutes = () => {
         </>
       ) : (
         <>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/events" element={<Events />} />
-            <Route path="/users" element={<Users />} />
-            <Route path="/startupstar" element={<StartupStar />} />
-            <Route path="/jury" element={<Jury />} />
-            <Route path="/learning" element={<Learning />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/settings" element={<Settings />} />
+          <Route element={<DashboardLayout />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/users-list" element={<Users />} />
+          <Route path="/user-form" element={<UserForm />} />
+         
+          <Route path="/startupstar" element={<StartupStar />} />
+          <Route path="/jury" element={<Jury />} />
+          <Route path="/learning" element={<Learning />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/users" element={<UserProfileList />} />
+          <Route path="/user/:id" element={<UserProfileDetails />} />
           </Route>
           <Route path="/login" element={<Navigate to="/dashboard" />} />
           <Route path="/auth" element={<Navigate to="/dashboard" />} />

@@ -3,6 +3,8 @@ const fs = require('fs');
 const User = require('../models/User');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
+const Event = require('../models/Event');
+const EventPayment = require('../models/EventPayment');
 
 // Create a new user
 const createUser = catchAsync(async (req, res, next) => {
@@ -70,8 +72,58 @@ const createUser = catchAsync(async (req, res, next) => {
 
 // Get all users
 const getAllUsers = catchAsync(async (req, res, next) => {
-  console.log('Request body:');
-  const users = await User.find();
+  // Get total number of events
+  const totalEvents = await Event.countDocuments();
+  
+  // Get all non-admin users with their participation stats
+  const users = await User.aggregate([
+    { $match: { role: { $ne: 'admin' } } },
+    {
+      $lookup: {
+        from: 'eventpayments',
+        localField: '_id',
+        foreignField: 'userId',
+        as: 'payments'
+      }
+    },
+    {
+      $addFields: {
+        paidEvents: {
+          $size: {
+            $filter: {
+              input: '$payments',
+              as: 'payment',
+              cond: { $eq: ['$$payment.isActive', true] }
+            }
+          }
+        }
+      }
+    },
+    {
+      $addFields: {
+        participation: {
+          totalEvents: totalEvents,
+          attendedEvents: '$paidEvents',
+          percentage: {
+            $cond: {
+              if: { $gt: [totalEvents, 0] },
+              then: { $round: [{ $multiply: [{ $divide: ['$paidEvents', totalEvents] }, 100] }] },
+              else: 0
+            }
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        payments: 0, // Remove the payments array as it's no longer needed
+        password: 0, // Explicitly exclude password
+        otp: 0,      // Exclude OTP
+        __v: 0       // Exclude version key
+      }
+    }
+  ]);
+
   res.status(200).json({
     status: 'success',
     results: users.length,
@@ -83,16 +135,41 @@ const getAllUsers = catchAsync(async (req, res, next) => {
 
 // Get single user
 const getUser = catchAsync(async (req, res, next) => {
+  // Get user data
   const user = await User.findById(req.params.id);
-  
   if (!user) {
     return next(new AppError('No user found with that ID', 404));
   }
+  console.log(user);
   
+  // Get total number of events
+  const totalEvents = await Event.countDocuments();
+  console.log(totalEvents);
+  // Get number of events user has paid for
+  const userPaidEvents = await EventPayment.countDocuments({ 
+    userId: req.params.id,
+    isActive: true
+  });
+  console.log(userPaidEvents);  
+  // Calculate participation percentage
+  const participationPercentage = totalEvents > 0 
+    ? Math.round((userPaidEvents / totalEvents) * 100)
+    : 0;
+  console.log(participationPercentage);
+  // Add participation data to user object
+  const userWithParticipation = {
+    ...user.toObject(),
+    participation: {
+      totalEvents,
+      attendedEvents: userPaidEvents,
+      percentage: participationPercentage
+    }
+  };
+  console.log(userWithParticipation);
   res.status(200).json({
     status: 'success',
     data: {
-      user
+      user: userWithParticipation
     }
   });
 });
@@ -104,7 +181,7 @@ const updateUser = catchAsync(async (req, res, next) => {
 
   // Create filteredBody with only allowed fields
   const filteredBody = {};
-  const allowedFields = ['firstName', 'lastName', 'email', 'photo', 'mobile', 'DOB', 'gender', 'isVerified'];
+  const allowedFields = ['firstName', 'lastName', 'email', 'photo', 'mobile', 'DOB', 'gender', 'isVerified','role'];
 
   // Add fields from req.body to filteredBody
   Object.keys(req.body).forEach(key => {

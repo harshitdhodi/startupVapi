@@ -1,3 +1,4 @@
+const { default: mongoose } = require('mongoose');
 const EventPayment = require('../models/EventPayment');
 
 // Create a new payment record
@@ -67,16 +68,38 @@ exports.getPayment = async (req, res) => {
 // Get all payments for a user
 exports.getUserPayments = async (req, res) => {
     try {
+        // First get all payments for the user
         const payments = await EventPayment.find({ userId: req.params.userId })
-            .populate('eventId', 'title description')
+            .populate('eventId', 'name max_seats isStartUpVapiEvent')
             .sort({ paymentDate: -1 });
+
+        // Get all event IDs from the payments
+        const eventIds = payments.map(payment => payment.eventId._id);
+
+        // Get all event details for these events
+        const eventDetails = await mongoose.model('EventDetails').find({
+            eventId: { $in: eventIds }
+        });
+
+        // Create a map of eventId to eventDetails for easy lookup
+        const eventDetailsMap = new Map();
+        eventDetails.forEach(detail => {
+            eventDetailsMap.set(detail.eventId.toString(), detail);
+        });
+
+        // Combine the payment data with event details
+        const paymentsWithDetails = payments.map(payment => ({
+            ...payment.toObject(),
+            eventDetails: eventDetailsMap.get(payment.eventId._id.toString()) || null
+        }));
             
         res.status(200).json({
             success: true,
-            count: payments.length,
-            data: payments
+            count: paymentsWithDetails.length,
+            data: paymentsWithDetails
         });
     } catch (error) {
+        console.error('Error in getUserPayments:', error);
         res.status(500).json({
             success: false,
             message: error.message

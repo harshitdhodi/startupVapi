@@ -17,4 +17,9 @@ router.post('/verify-otp', authController.verifyOTP);
 // @access  Public
 router.post('/login', authController.login);
 
+// @route   POST /api/auth/admin-login
+// @desc    Login admin with email and password
+// @access  Public
+router.post('/admin-login', authController.adminLogin);
+
 module.exports = router;

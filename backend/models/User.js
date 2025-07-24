@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   firstName: {
@@ -32,6 +33,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Password is required'],
     trim: true,
+    select: false, // Don't select password by default
     validate: {
       validator: function(v) {
         // More permissive password validation
@@ -135,6 +137,22 @@ userSchema.virtual('fullName').get(function() {
 userSchema.methods.hasCompleteRegistration = function() {
   return this.registrationComplete && this.firstName && this.lastName && this.email;
 };
+
+// Method to compare passwords
+userSchema.methods.correctPassword = async function(candidatePassword, userPassword) {
+  return await bcrypt.compare(candidatePassword, userPassword);
+};
+
+// Pre-save middleware to hash password
+userSchema.pre('save', async function(next) {
+  // Only run this function if password was actually modified
+  if (!this.isModified('password')) return next();
+
+  // Hash the password with cost of 12
+  this.password = await bcrypt.hash(this.password, 12);
+
+  next();
+});
 
 // Query middleware to filter out inactive users by default
 userSchema.pre(/^find/, function(next) {

@@ -57,7 +57,7 @@ const Login = ({ onForgotPassword }) => {
     setErrors({});
 
     try {
-      const response = await fetch("/api/user/login", {
+      const response = await fetch("/api/auth/admin-login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
