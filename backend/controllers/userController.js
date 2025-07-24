@@ -181,14 +181,36 @@ const updateUser = catchAsync(async (req, res, next) => {
 
   // Create filteredBody with only allowed fields
   const filteredBody = {};
-  const allowedFields = ['firstName', 'lastName', 'email', 'photo', 'mobile', 'DOB', 'gender', 'isVerified','role'];
+  const allowedFields = ['firstName', 'lastName', 'email', 'photo', 'DOB', 'gender', 'isVerified', 'role'];
 
   // Add fields from req.body to filteredBody
   Object.keys(req.body).forEach(key => {
-    if (allowedFields.includes(key)) {
+    // Handle dot notation for nested fields (like mobile.countryCode)
+    if (key.includes('.')) {
+      const [parent, child] = key.split('.');
+      if (parent === 'mobile' && (child === 'countryCode' || child === 'number')) {
+        if (!filteredBody.mobile) filteredBody.mobile = {};
+        filteredBody.mobile[child] = req.body[key];
+      }
+    } else if (allowedFields.includes(key)) {
       filteredBody[key] = req.body[key];
     }
   });
+
+  // Handle mobile update if it was sent as a JSON string
+  if (req.body.mobile && typeof req.body.mobile === 'string') {
+    try {
+      const mobileData = JSON.parse(req.body.mobile);
+      if (mobileData && (mobileData.countryCode || mobileData.number)) {
+        if (!filteredBody.mobile) filteredBody.mobile = {};
+        if (mobileData.countryCode) filteredBody.mobile.countryCode = mobileData.countryCode;
+        if (mobileData.number) filteredBody.mobile.number = mobileData.number;
+      }
+    } catch (error) {
+      console.error('Error parsing mobile data:', error);
+      // Continue with other updates even if mobile parsing fails
+    }
+  }
 
   // If a file was uploaded, update the photo field with the processed filename
   if (req.file && req.body.photo) {
