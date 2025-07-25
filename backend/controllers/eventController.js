@@ -1,7 +1,7 @@
 const Event = require('../models/Event');
 const asyncHandler = require('express-async-handler');
 const AppError = require('../utils/appError');
-
+const moment = require('moment');
 exports.createEvent = asyncHandler(async (req, res, next) => {
   try {
     console.log('Request body:', req.body);
@@ -26,7 +26,7 @@ exports.createEvent = asyncHandler(async (req, res, next) => {
       // Use filename if available (diskStorage), otherwise use originalname
       banner = req.file.filename || req.file.originalname;
     }
-
+console.log("banner",banner);
     if (!banner) {
       return next(new AppError('Please upload a banner image', 400));
     }
@@ -39,14 +39,15 @@ exports.createEvent = asyncHandler(async (req, res, next) => {
     // Parse and validate dates
     const parsedDate = moment(date, 'DD/MM/YYYY', true);
     const parsedLastDate = moment(lastDate, 'DD/MM/YYYY', true);
+console.log(parsedDate.isValid());
+console.log(parsedLastDate.isValid());
+    // if (!parsedDate.isValid()) {
+    //   return next(new AppError('Invalid event date format. Use DD/MM/YYYY', 400));
+    // }
 
-    if (!parsedDate.isValid()) {
-      return next(new AppError('Invalid event date format. Use DD/MM/YYYY', 400));
-    }
-
-    if (!parsedLastDate.isValid()) {
-      return next(new AppError('Invalid last registration date format. Use DD/MM/YYYY', 400));
-    }
+    // if (!parsedLastDate.isValid()) {
+    //   return next(new AppError('Invalid last registration date format. Use DD/MM/YYYY', 400));
+    // }
 
     // Prepare event data
     const eventData = {
@@ -54,13 +55,13 @@ exports.createEvent = asyncHandler(async (req, res, next) => {
       time: time.trim(),
       location: location.trim(),
       description: description.trim(),
-      prize: prize, // Keep as string to match schema
+      prize: prize,
       lastDate: parsedLastDate.toDate(),
       name: name.trim(),
       banner,
       max_seats: Number(max_seats) || 0,
     };
-
+console.log("eventData",eventData);
     // Handle youtubeLinks
     if (youtubeLinks) {
       eventData.youtubeLinks = Array.isArray(youtubeLinks) ? youtubeLinks : [youtubeLinks];

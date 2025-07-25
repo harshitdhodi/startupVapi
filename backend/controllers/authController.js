@@ -164,10 +164,10 @@ const verifyOTP = catchAsync(async (req, res, next) => {
  * @access  Public
  */
 const login = catchAsync(async (req, res, next) => {
-
   try {
     const { countryCode, mobileNumber } = req.body;
   
+    // Validation
     if (!countryCode || !mobileNumber) {
       return next(new AppError('Country code and mobile number are required', 400));
     }
@@ -176,33 +176,49 @@ const login = catchAsync(async (req, res, next) => {
     if (!/^\d{10,15}$/.test(mobileNumber)) {
       return next(new AppError('Please provide a valid mobile number', 400));
     }
-    console.log('Login request:', req.body);
+    
+    console.log('Login request:', { countryCode, mobileNumber });
+    
     // Check if user exists with this mobile number
-    let user = await User.findOne({ 'mobile.number': mobileNumber });
-    console.log('User found:', user); 
+    let user = await User.findByMobile(mobileNumber);
+    console.log('User found:', user ? 'Yes' : 'No'); 
+    
     // If user doesn't exist, create a new user
     if (!user) {
-      user = await User.create({
-        mobile: {
-          countryCode,
-          number: mobileNumber
-        },
-        name: `User-${Date.now()}`, // Default name, can be updated later
-        isVerified: true // Set new users as verified by default
-      });
-    } else {
-      // Only check verification status for existing users
-      console.log('User verification status:', user.isVerified);
-      if (user.isVerified === false) {
-        return next(new AppError('This account is not verified. Please contact support for assistance.', 403));
+      try {
+        user = await User.createMobileUser(countryCode, mobileNumber);
+        console.log('New user created:', user._id);
+      } catch (createError) {
+        // Handle duplicate key error or other creation errors
+        if (createError.code === 11000) {
+          if (createError.keyPattern.email) {
+            // Email duplicate error - try again without email
+            user = await User.create({
+              mobile: {
+                countryCode,
+                number: mobileNumber
+              }
+            });
+          } else if (createError.keyPattern['mobile.number']) {
+            // Mobile number already exists (race condition)
+            user = await User.findByMobile(mobileNumber);
+            if (!user) {
+              return next(new AppError('Unable to create or find user account', 500));
+            }
+          } else {
+            throw createError;
+          }
+        } else {
+          throw createError;
+        }
       }
-    }
+    } 
 
     // Generate OTP
     const otp = generateOTP();
     
     // Format full mobile number for OTP
-    const fullMobile = `${countryCode}${mobileNumber}`;
+    const fullMobile = user.getFullMobile();
     
     // Delete any existing OTPs for this mobile
     await OTP.deleteMany({ mobile: fullMobile });
@@ -222,17 +238,18 @@ const login = catchAsync(async (req, res, next) => {
       status: 'success',
       message: 'OTP sent successfully',
       data: {
+        userId: user._id,
         mobile: {
-          countryCode,
-          number: mobileNumber
+          countryCode: user.mobile.countryCode,
+          number: user.mobile.number
         },
         // Only send OTP in development for testing
-        otp: process.env.NODE_ENV === 'development' ? otp : undefined
+        ...(process.env.NODE_ENV === 'development' && { otp })
       }
     });
   } catch (error) {
     console.error('Login error:', error);
-    return next(new AppError('Failed to process login', 500));
+    return next(new AppError('Failed to process login request', 500));
   }
 });
 
