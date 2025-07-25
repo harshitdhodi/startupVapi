@@ -3,13 +3,15 @@ const router = express.Router();
 const {
   registerForStartupEvent,
   getEventRegistrations,
-  getRegistration
+  getRegistration,
+  updateStartupEventRegistration
 } = require('../controllers/startupEventController');
 const authController = require('../controllers/authController');
 const { handleFileUpload } = require('../middleware/uploadVideo');
 
 // Public routes - No authentication required for registration
 router.post('/register', handleFileUpload, registerForStartupEvent);
+router.put('/register/:id', handleFileUpload, updateStartupEventRegistration);
 // Admin routes
 if (authController.restrictTo) {
   router.use(authController.restrictTo('admin'));

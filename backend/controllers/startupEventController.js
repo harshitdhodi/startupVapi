@@ -1,4 +1,5 @@
 const StartupEventCandidate = require('../models/StartupEventCandidate');
+const Event = require('../models/Event');
 const asyncHandler = require('express-async-handler');
 const AppError = require('../utils/appError');
 const mongoose = require('mongoose');
@@ -7,6 +8,9 @@ const mongoose = require('mongoose');
 // @route   POST /api/startup-event/register
 // @access  Public
 const registerForStartupEvent = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
   try {
     console.log('Request received:');
     console.log('Headers:', req.headers);
@@ -14,7 +18,45 @@ const registerForStartupEvent = async (req, res, next) => {
     console.log('File:', req.file);
 
     // Parse form data with teamMembers[0].fieldName format
-    const { eventId, p_title, p_description, total_fees, ...rest } = req.body;
+    const { eventId, p_title, p_description, ...rest } = req.body;
+    
+    if (!eventId) {
+      await session.abortTransaction();
+      session.endSession();
+      return next(new AppError('Event ID is required', 400));
+    }
+    
+    // Find the event to get the prize per person
+    const event = await Event.findById(eventId).session(session).lean();
+    
+    if (!event) {
+      await session.abortTransaction();
+      session.endSession();
+      return next(new AppError('Event not found', 404));
+    }
+    
+    console.log('Event object:', JSON.stringify(event, null, 2));
+    
+    // Default prize value if not found in the event
+    const DEFAULT_PRIZE_PER_PERSON = 100; // Set your default price here
+    
+    // Extract the numeric value from the prize with fallback to default
+    let prizePerPerson = DEFAULT_PRIZE_PER_PERSON;
+    
+    if (event.prize) {
+      try {
+        if (typeof event.prize === 'string') {
+          const numericValue = event.prize.replace(/[^0-9.]/g, '');
+          prizePerPerson = parseFloat(numericValue) || DEFAULT_PRIZE_PER_PERSON;
+        } else if (typeof event.prize === 'number') {
+          prizePerPerson = event.prize;
+        }
+      } catch (error) {
+        console.warn('Error parsing event prize, using default:', error);
+      }
+    }
+    
+    console.log('Using prize per person:', prizePerPerson);
     
     // Helper function to parse DD/MM/YYYY format to valid Date
     const parseDate = (dateString) => {
@@ -36,128 +78,82 @@ const registerForStartupEvent = async (req, res, next) => {
       const parsedDOB = parseDate(dobString);
       
       if (!parsedDOB || isNaN(parsedDOB.getTime())) {
+        await session.abortTransaction();
+        session.endSession();
         return next(new AppError(`Team member ${i + 1}: Invalid date format. Use DD/MM/YYYY format`, 400));
+      }
+      
+      // Map the fields correctly, handling both 'college_name' and 'collage_name' for backward compatibility
+      const collegeName = rest[`teamMembers[${i}].college_name`] || rest[`teamMembers[${i}].collage_name`];
+      
+      if (!collegeName) {
+        await session.abortTransaction();
+        session.endSession();
+        return next(new AppError(`Team member ${i + 1}: College name is required`, 400));
       }
       
       teamMembers.push({
         name: rest[`teamMembers[${i}].name`],
         email: rest[`teamMembers[${i}].email`] || `${rest[`teamMembers[${i}].name`].toLowerCase().replace(/\s+/g, '')}@example.com`,
-        DOB: parsedDOB, // Use parsed date
+        DOB: parsedDOB,
         gender: rest[`teamMembers[${i}].gender`],
-        college_name: rest[`teamMembers[${i}].college_name`], // Note: keeping the typo as it matches your form field
+        college_name: collegeName, // Using the correctly mapped college name
         designation: rest[`teamMembers[${i}].designation`]
       });
       i++;
     }
-    
-    console.log('Parsed team members:', teamMembers);
-    
-    const projectDetails = {
-      p_title,
-      p_description,
-      total_fees: parseFloat(total_fees)
-    };
-
-    // Validate required fields
-    if (!eventId) {
-      return next(new AppError('Event ID is required', 400));
-    }
 
     if (teamMembers.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
       return next(new AppError('At least one team member is required', 400));
     }
 
-    if (!p_title || !p_description || !total_fees) {
-      return next(new AppError('All project details (title, description, fees) are required', 400));
-    }
+    // Calculate total fees based on number of team members and prize per person
+    const total_fees = teamMembers.length * prizePerPerson;
 
-    // Validate team member fields
-    for (let i = 0; i < teamMembers.length; i++) {
-      const member = teamMembers[i];
-      const { name, email, DOB, gender, college_name, designation } = member;
-      
-      if (!name || !DOB || !gender || !college_name || !designation) {
-        return next(new AppError(`Team member ${i + 1}: All fields (name, DOB, gender, college_name, designation) are required`, 400));
-      }
-
-      // Validate email format if provided
-      if (email) {
-        const emailRegex = /^\S+@\S+\.\S+$/;
-        if (!emailRegex.test(email)) {
-          return next(new AppError(`Team member ${i + 1}: Invalid email format`, 400));
-        }
-      }
-
-      // Validate gender enum
-      const validGenders = ['male', 'female', 'other', 'prefer not to say'];
-      if (!validGenders.includes(gender)) {
-        return next(new AppError(`Team member ${i + 1}: Invalid gender value`, 400));
-      }
-
-      // DOB validation is already done above during parsing
-    }
-
-    // Validate total_fees is a non-negative number
-    const feesNumber = parseFloat(total_fees);
-    if (isNaN(feesNumber) || feesNumber < 0) {
-      return next(new AppError('Total fees must be a valid non-negative number', 400));
-    }
-
-    // Validate video pitch file
-    if (!req.file) {
-      return next(new AppError('Video pitch file (MP4) is required', 400));
-    }
-
-    // Check for duplicate registration
-    const existingRegistration = await StartupEventCandidate.findOne({
-      eventId,
-      'teamMembers.email': { $in: teamMembers.map(member => member.email.toLowerCase()) }
-    });
-
-    if (existingRegistration) {
-      return next(new AppError('A team member is already registered for this event', 400));
-    }
-
-    // Create new registration
-    const registration = await StartupEventCandidate.create({
+    // Create the registration
+    const registration = new StartupEventCandidate({
       eventId,
       teamMembers,
-      p_title: p_title.trim(),
-      p_description: p_description.trim(),
-      total_fees: feesNumber,
-      video: req.file.filename  // Save video path at root level as per model
+      p_title,
+      p_description,
+      video: req.file ? req.file.filename : null,
+      total_fees
     });
 
-    // Respond with success
+    await registration.save({ session });
+    await session.commitTransaction();
+    session.endSession();
+
     res.status(201).json({
       status: 'success',
-      message: 'Registration successful',
       data: {
         registration,
-      },
+        calculatedFees: {
+          prizePerPerson,
+          teamSize: teamMembers.length,
+          total_fees
+        }
+      }
     });
 
   } catch (error) {
-    console.error('Registration error:', error);
-
-    // Handle Mongoose validation errors
+    await session.abortTransaction();
+    session.endSession();
+    
+    console.error('Error in registerForStartupEvent:', error);
+    
     if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map((val) => val.message);
-      return next(new AppError(`Validation error: ${messages.join('. ')}`, 400));
+      const errors = Object.values(error.errors).map(err => err.message);
+      return next(new AppError(`Validation Error: ${errors.join('. ')}`, 400));
     }
-
-    // Handle duplicate key errors
+    
     if (error.code === 11000) {
-      return next(new AppError('Duplicate entry detected', 400));
+      return next(new AppError('Duplicate entry. This email is already registered for the event.', 400));
     }
-
-    // Handle cast errors (invalid ObjectId)
-    if (error.name === 'CastError') {
-      return next(new AppError('Invalid data format', 400));
-    }
-
-    // Handle other errors
-    return next(new AppError(`Server error: ${error.message}`, 500));
+    
+    next(new AppError('An error occurred while processing your registration', 500));
   }
 };
 
@@ -212,8 +208,122 @@ const getRegistration = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Update a team's registration for a startup event
+// @route   PUT /api/startup-event/register/:id
+// @access  Private
+
+const updateStartupEventRegistration = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
+  try {
+    const registrationId = req.params.id;
+    console.log('Update request received for registration ID:', registrationId);
+    console.log('Headers:', req.headers);
+    console.log('Body:', req.body);
+    console.log('File:', req.file);
+
+    // Find the existing registration
+    const existingRegistration = await StartupEventCandidate.findById(registrationId).session(session);
+    
+    if (!existingRegistration) {
+      await session.abortTransaction();
+      session.endSession();
+      return next(new AppError('Registration not found', 404));
+    }
+
+    // Create update object with existing values
+    const updateData = {
+      p_title: existingRegistration.p_title,
+      p_description: existingRegistration.p_description,
+      teamMembers: [...existingRegistration.teamMembers],
+      total_fees: existingRegistration.total_fees
+    };
+
+    // Update only the fields that are provided in the request
+    if (req.body.p_title !== undefined) {
+      updateData.p_title = req.body.p_title;
+    }
+    
+    if (req.body.p_description !== undefined) {
+      updateData.p_description = req.body.p_description;
+    }
+
+    // Handle team members update if provided
+    if (Object.keys(req.body).some(key => key.startsWith('teamMembers'))) {
+      // Create a copy of existing team members
+      const updatedTeamMembers = [...existingRegistration.teamMembers];
+      
+      // Update specific team member fields if provided
+      Object.keys(req.body).forEach(key => {
+        const match = key.match(/teamMembers\[(\d+)\]\.(\w+)/);
+        if (match) {
+          const [_, index, field] = match;
+          const memberIndex = parseInt(index, 10);
+          
+          if (memberIndex >= 0 && memberIndex < updatedTeamMembers.length) {
+            // Special handling for DOB to ensure proper date parsing
+            if (field === 'DOB' && req.body[key]) {
+              const parts = req.body[key].split('/');
+              if (parts.length === 3) {
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1;
+                const year = parseInt(parts[2], 10);
+                updatedTeamMembers[memberIndex][field] = new Date(year, month, day);
+              }
+            } else {
+              updatedTeamMembers[memberIndex][field] = req.body[key];
+            }
+          }
+        }
+      });
+      
+      updateData.teamMembers = updatedTeamMembers;
+    }
+
+    // Handle file upload if provided
+    if (req.file) {
+      updateData.video = req.file.filename;
+    }
+
+    // Update the registration
+    const updatedRegistration = await StartupEventCandidate.findByIdAndUpdate(
+      registrationId,
+      updateData,
+      { new: true, runValidators: true, session }
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        registration: updatedRegistration
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    
+    console.error('Error in updateStartupEventRegistration:', error);
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return next(new AppError(`Validation Error: ${errors.join('. ')}`, 400));
+    }
+    
+    if (error.code === 11000) {
+      return next(new AppError('Duplicate entry. This email is already registered for the event.', 400));
+    }
+    
+    next(new AppError('An error occurred while updating your registration', 500));
+  }
+};
 module.exports = {
   registerForStartupEvent,
   getEventRegistrations,
-  getRegistration
+  getRegistration,
+  updateStartupEventRegistration
 };

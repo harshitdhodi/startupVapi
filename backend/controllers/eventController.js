@@ -1,7 +1,6 @@
 const Event = require('../models/Event');
 const asyncHandler = require('express-async-handler');
 const AppError = require('../utils/appError');
-const moment = require('moment');
 exports.createEvent = asyncHandler(async (req, res, next) => {
   try {
     console.log('Request body:', req.body);
@@ -20,15 +19,58 @@ exports.createEvent = asyncHandler(async (req, res, next) => {
       max_seats
     } = req.body;
 
-    // Fix: Handle banner filename properly
+    // Handle the banner filename from the upload middleware
     let banner = null;
     if (req.file) {
-      // Use filename if available (diskStorage), otherwise use originalname
-      banner = req.file.filename || req.file.originalname;
-    }
-console.log("banner",banner);
-    if (!banner) {
+      // The resizeUserPhoto middleware should have set req.file.filename
+      banner = req.file.filename;
+      if (!banner) {
+        return next(new AppError('Error processing the uploaded image', 500));
+      }
+    } else {
       return next(new AppError('Please upload a banner image', 400));
+    }
+    console.log("Processed banner filename:", banner);
+
+    // Parse dates from DD/MM/YYYY format
+    const parseDate = (dateString) => {
+      const [day, month, year] = dateString.split('/').map(Number);
+      // Note: JavaScript months are 0-indexed, so we subtract 1 from month
+      return new Date(year, month - 1, day);
+    };
+
+    // Parse and validate dates
+    let eventDate, lastRegistrationDate;
+    
+    try {
+      eventDate = parseDate(date);
+      lastRegistrationDate = parseDate(lastDate);
+
+      // Validate dates
+      if (isNaN(eventDate.getTime())) {
+        return next(new AppError('Invalid event date format. Please use DD/MM/YYYY format', 400));
+      }
+
+      if (isNaN(lastRegistrationDate.getTime())) {
+        return next(new AppError('Invalid last registration date format. Please use DD/MM/YYYY format', 400));
+      }
+
+      // Ensure dates are in the future
+      const now = new Date();
+      if (eventDate <= now) {
+        return next(new AppError('Event date must be in the future', 400));
+      }
+
+      if (lastRegistrationDate <= now) {
+        return next(new AppError('Last registration date must be in the future', 400));
+      }
+
+      // Ensure lastDate is before or same as event date
+      if (lastRegistrationDate > eventDate) {
+        return next(new AppError('Last registration date cannot be after the event date', 400));
+      }
+    } catch (error) {
+      return next(new AppError('Invalid date format. Please use DD/MM/YYYY format', 400));
     }
 
     // Validate required fields
@@ -36,32 +78,21 @@ console.log("banner",banner);
       return next(new AppError('Please provide all required fields', 400));
     }
 
-    // Parse and validate dates
-    const parsedDate = moment(date, 'DD/MM/YYYY', true);
-    const parsedLastDate = moment(lastDate, 'DD/MM/YYYY', true);
-console.log(parsedDate.isValid());
-console.log(parsedLastDate.isValid());
-    // if (!parsedDate.isValid()) {
-    //   return next(new AppError('Invalid event date format. Use DD/MM/YYYY', 400));
-    // }
-
-    // if (!parsedLastDate.isValid()) {
-    //   return next(new AppError('Invalid last registration date format. Use DD/MM/YYYY', 400));
-    // }
-
-    // Prepare event data
+    // Prepare event data with properly formatted dates
     const eventData = {
-      date: parsedDate.toDate(),
+      date: eventDate,
       time: time.trim(),
       location: location.trim(),
       description: description.trim(),
       prize: prize,
-      lastDate: parsedLastDate.toDate(),
+      lastDate: lastRegistrationDate,
       name: name.trim(),
       banner,
       max_seats: Number(max_seats) || 0,
     };
-console.log("eventData",eventData);
+
+    console.log("eventData",eventData);
+
     // Handle youtubeLinks
     if (youtubeLinks) {
       eventData.youtubeLinks = Array.isArray(youtubeLinks) ? youtubeLinks : [youtubeLinks];

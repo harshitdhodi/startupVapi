@@ -7,14 +7,15 @@ const {
   updateEvent,
   deleteEvent
 } = require('../controllers/eventController');
-const { uploadBanner } = require('../middleware/uploadBanner');
+const { uploadBanner, resizeUserPhoto } = require('../middleware/uploadBanner');
 
 // Public routes
 router.route('/')
   .get(getEvents)
   .post(
-    uploadBanner,  // Handle single file upload with field name 'banner'
-    createEvent       // Handle the rest of the request
+    uploadBanner,
+    resizeUserPhoto,
+    createEvent
   );
 
 router.route('/:id')

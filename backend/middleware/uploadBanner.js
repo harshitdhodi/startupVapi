@@ -32,8 +32,8 @@ const resizeUserPhoto = catchAsync(async (req, res, next) => {
   if (!req.file) return next(new AppError('No file was uploaded', 400));
 
   try {
-    // Create filename
-    const filename = `${Date.now()}.jpeg`;
+    // Create filename with timestamp to prevent naming conflicts
+    const filename = `event-${Date.now()}.jpeg`;
     
     // Create directory if it doesn't exist
     const uploadDir = path.join(__dirname, '../public/img/events');
@@ -43,7 +43,7 @@ const resizeUserPhoto = catchAsync(async (req, res, next) => {
       fs.mkdirSync(uploadDir, { recursive: true, mode: 0o777 });
     }
 
-    // Process the image
+    // Process and save the image
     await sharp(req.file.buffer)
       .resize(1200, 630, {  // Standard banner size
         fit: 'cover',
@@ -58,11 +58,12 @@ const resizeUserPhoto = catchAsync(async (req, res, next) => {
       })
       .toFile(path.join(uploadDir, filename));
 
-    // Save the filename to the file object
-    req.file.filename = `${filename}`;  // Save relative path
+    // Attach the new filename to req.file for the controller to use
+    req.file.filename = filename;
+    
     next();
-  } catch (error) {
-    console.error('Error processing image:', error);
+  } catch (err) {
+    console.error('Error processing image:', err);
     return next(new AppError('Error processing the uploaded image', 500));
   }
 });
