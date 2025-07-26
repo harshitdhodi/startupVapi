@@ -32,29 +32,7 @@ const dummyEvents = [
     category: "Family event",
     registrations: 65,
     status: "Past",
-  },
-  {
-    _id: "2",
-    banner: "event-banner-2.jpeg",
-    date: "2025-07-08T18:30:00.000Z",
-    time: "19:00",
-    location: "Rofel College, Vapi",
-    description: "Networking event for startup connect",
-    youtubeLinks: ["https://www.youtube.com"],
-    prize: "0",
-    lastDate: "2025-07-07T18:30:00.000Z",
-    eventId: {
-      _id: "2",
-      name: "Startup Connect",
-      max_seats: 45,
-      isStartUpVapiEvent: true,
-      createdAt: "2025-07-16T13:26:09.359Z",
-      updatedAt: "2025-07-16T13:26:09.359Z",
-    },
-    category: "Networking",
-    registrations: 45,
-    status: "Past",
-  } 
+  }
 ]
 
 export default function EventsPage() {
@@ -64,8 +42,8 @@ export default function EventsPage() {
   const [selectedType, setSelectedType] = useState("All types")
   const [loading, setLoading] = useState(true)
   const [selectedEvent, setSelectedEvent] = useState(null)
-  const [isRegistrationOpen, setIsRegistrationOpen] = useState(false)
-  const [isCreateMode, setIsCreateMode] = useState(false)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [formMode, setFormMode] = useState('create') // 'create', 'edit', 'register'
 
   useEffect(() => {
     fetchEvents()
@@ -77,15 +55,25 @@ export default function EventsPage() {
 
   const fetchEvents = async () => {
     try {
-      const response = await fetch("/api/event-details/startup-vapi-events")
+      const response = await fetch("/api/event")
+      console.log("response",response)
       const result = await response.json()
+      console.log(result)
 
-      if (result.status === "success" && result.data) {
+      if (result.success && result.data) {
         // Transform API data to match our component structure
         const transformedEvents = result.data.map((event) => ({
           ...event,
+          eventId: {  // Create eventId object to match expected structure
+            _id: event._id,
+            name: event.name,
+            max_seats: event.max_seats,
+            isStartUpVapiEvent: event.isStartUpVapiEvent,
+            createdAt: event.createdAt,
+            updatedAt: event.updatedAt
+          },
           category: getCategoryFromDescription(event.description),
-          registrations: Math.floor(Math.random() * event.eventId.max_seats), // Since registrations not in API
+          registrations: 0, // Default to 0 registrations
           status: new Date(event.date) < new Date() ? "Past" : "Upcoming",
         }))
         setEvents(transformedEvents)
@@ -99,6 +87,32 @@ export default function EventsPage() {
       setEvents(dummyEvents)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Fetch single event for editing
+  const fetchEventById = async (eventId) => {
+    try {
+      const response = await fetch(`/api/event/${eventId}`)
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        return {
+          ...result.data,
+          eventId: {
+            _id: result.data._id,
+            name: result.data.name,
+            max_seats: result.data.max_seats,
+            isStartUpVapiEvent: result.data.isStartUpVapiEvent,
+            createdAt: result.data.createdAt,
+            updatedAt: result.data.updatedAt
+          }
+        }
+      }
+      return null
+    } catch (error) {
+      console.error("Failed to fetch event:", error)
+      return null
     }
   }
 
@@ -154,29 +168,80 @@ export default function EventsPage() {
     return colors[category] || colors["General"]
   }
 
-  const handleRegistrationSuccess = (result) => {
-    // You can update the UI here if needed after successful registration
-    console.log('Registration successful:', result);
+  const handleFormSuccess = (result) => {
+    console.log('Form submission successful:', result);
+    // Refresh events list after successful create/edit
+    if (formMode === 'create' || formMode === 'edit') {
+      fetchEvents();
+    }
   };
 
+  // Open form for creating new event
+  const openCreateEvent = () => {
+    setSelectedEvent(null);
+    setFormMode('create');
+    setIsFormOpen(true);
+  };
+
+  // Open form for editing existing event
+  const openEditEvent = async (event) => {
+    try {
+      // Fetch the complete event data
+      const eventData = await fetchEventById(event._id);
+      if (eventData) {
+        setSelectedEvent(eventData);
+        setFormMode('edit');
+        setIsFormOpen(true);
+      } else {
+        console.error('Failed to fetch event data for editing');
+        // Fallback to using the event data we have
+        setSelectedEvent(event);
+        setFormMode('edit');
+        setIsFormOpen(true);
+      }
+    } catch (error) {
+      console.error('Error opening edit form:', error);
+      // Fallback to using the event data we have
+      setSelectedEvent(event);
+      setFormMode('edit');
+      setIsFormOpen(true);
+    }
+  };
+
+  // Open form for user registration
   const openRegistration = (event) => {
     setSelectedEvent(event);
-    setIsRegistrationOpen(true);
+    setFormMode('register');
+    setIsFormOpen(true);
   };
 
-  const openCreateEvent = () => {
-    setSelectedEvent({
-      _id: 'new',
-      eventId: { name: 'New Event' }
-    });
-    setIsCreateMode(true);
-    setIsRegistrationOpen(true);
-  };
-
-  const closeRegistration = () => {
-    setIsRegistrationOpen(false);
+  const closeForm = () => {
+    setIsFormOpen(false);
     setSelectedEvent(null);
-    setIsCreateMode(false);
+    setFormMode('create');
+  };
+
+  // Handle delete event
+  const handleDeleteEvent = async (eventId) => {
+    if (!window.confirm('Are you sure you want to delete this event?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/event/${eventId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Remove the event from the local state
+        setEvents(events.filter(event => event._id !== eventId));
+        console.log('Event deleted successfully');
+      } else {
+        console.error('Failed to delete event');
+      }
+    } catch (error) {
+      console.error('Error deleting event:', error);
+    }
   };
 
   if (loading) {
@@ -191,12 +256,14 @@ export default function EventsPage() {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      {isRegistrationOpen && selectedEvent && (
+      {isFormOpen && (
         <EventRegistrationForm
           event={selectedEvent}
-          onClose={closeRegistration}
-          onSubmit={handleRegistrationSuccess}
-          isCreateMode={isCreateMode}
+          onClose={closeForm}
+          onSubmit={handleFormSuccess}
+          isCreateMode={formMode === 'create'}
+          isEditMode={formMode === 'edit'}
+          isRegisterMode={formMode === 'register'}
         />
       )}
       <div className="max-w-7xl mx-auto">
@@ -292,10 +359,20 @@ export default function EventsPage() {
                           <UserPlus className="w-4 h-4 mr-1" />
                           Register
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-orange-500 hover:text-orange-600">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-orange-500 hover:text-orange-600"
+                          onClick={() => openEditEvent(event)}
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-red-500 hover:text-red-600"
+                          onClick={() => handleDeleteEvent(event._id)}
+                        >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

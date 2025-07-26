@@ -23,7 +23,7 @@ const eventSchema = new mongoose.Schema({
     required: [true, 'Please provide a banner image URL']
   },
   date: {
-    type: Date,
+    type: String,
     required: [true, 'Please provide event date']
   },
   time: {
@@ -63,7 +63,7 @@ const eventSchema = new mongoose.Schema({
     required: [true, 'Please provide prize details']
   },
   lastDate: {
-    type: Date,
+    type: String,
     required: [true, 'Please provide last date for registration']
   }
 }, {

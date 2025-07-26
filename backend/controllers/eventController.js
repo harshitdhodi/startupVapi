@@ -1,6 +1,7 @@
 const Event = require('../models/Event');
 const asyncHandler = require('express-async-handler');
 const AppError = require('../utils/appError');
+
 exports.createEvent = asyncHandler(async (req, res, next) => {
   try {
     console.log('Request body:', req.body);
@@ -15,8 +16,8 @@ exports.createEvent = asyncHandler(async (req, res, next) => {
       lastDate,
       name,
       youtubeLinks,
-      youtubeLink, // For backward compatibility
-      max_seats
+      max_seats,
+      isStartUpVapiEvent
     } = req.body;
 
     // Handle the banner filename from the upload middleware
@@ -32,63 +33,18 @@ exports.createEvent = asyncHandler(async (req, res, next) => {
     }
     console.log("Processed banner filename:", banner);
 
-    // Parse dates from DD/MM/YYYY format
-    const parseDate = (dateString) => {
-      const [day, month, year] = dateString.split('/').map(Number);
-      // Note: JavaScript months are 0-indexed, so we subtract 1 from month
-      return new Date(year, month - 1, day);
-    };
-
-    // Parse and validate dates
-    let eventDate, lastRegistrationDate;
-    
-    try {
-      eventDate = parseDate(date);
-      lastRegistrationDate = parseDate(lastDate);
-
-      // Validate dates
-      if (isNaN(eventDate.getTime())) {
-        return next(new AppError('Invalid event date format. Please use DD/MM/YYYY format', 400));
-      }
-
-      if (isNaN(lastRegistrationDate.getTime())) {
-        return next(new AppError('Invalid last registration date format. Please use DD/MM/YYYY format', 400));
-      }
-
-      // Ensure dates are in the future
-      const now = new Date();
-      if (eventDate <= now) {
-        return next(new AppError('Event date must be in the future', 400));
-      }
-
-      if (lastRegistrationDate <= now) {
-        return next(new AppError('Last registration date must be in the future', 400));
-      }
-
-      // Ensure lastDate is before or same as event date
-      if (lastRegistrationDate > eventDate) {
-        return next(new AppError('Last registration date cannot be after the event date', 400));
-      }
-    } catch (error) {
-      return next(new AppError('Invalid date format. Please use DD/MM/YYYY format', 400));
-    }
-
-    // Validate required fields
-    if (!name || !date || !time || !location || !description || !prize || !lastDate || !max_seats) {
-      return next(new AppError('Please provide all required fields', 400));
-    }
-
     // Prepare event data with properly formatted dates
     const eventData = {
-      date: eventDate,
+      date: date,
       time: time.trim(),
       location: location.trim(),
       description: description.trim(),
       prize: prize,
-      lastDate: lastRegistrationDate,
+      lastDate: lastDate,
       name: name.trim(),
       banner,
       max_seats: Number(max_seats) || 0,
+      isStartUpVapiEvent: isStartUpVapiEvent
     };
 
     console.log("eventData",eventData);
@@ -96,8 +52,6 @@ exports.createEvent = asyncHandler(async (req, res, next) => {
     // Handle youtubeLinks
     if (youtubeLinks) {
       eventData.youtubeLinks = Array.isArray(youtubeLinks) ? youtubeLinks : [youtubeLinks];
-    } else if (youtubeLink) {
-      eventData.youtubeLinks = [youtubeLink];
     } else {
       eventData.youtubeLinks = []; // Provide empty array if no links
     }
@@ -167,63 +121,98 @@ exports.getEvent = asyncHandler(async (req, res) => {
 // @desc    Update event
 // @route   PUT /api/events/:id
 // @access  Private/Admin
-exports.updateEvent = asyncHandler(async (req, res) => {
-  let event = await Event.findById(req.params.id);
+exports.updateEvent = asyncHandler(async (req, res, next) => {
+  try {
+    console.log('=== Update Event Request ===');
+    console.log('Event ID:', req.params.id);
+    console.log('Request body fields:', Object.keys(req.body));
+    console.log('Uploaded file:', req.file ? req.file.filename : 'No file uploaded');
+    console.log('Request body values:', req.body);
 
-  if (!event) {
-    res.status(404);
-    throw new Error('Event not found');
-  }
+    // Find the event by ID
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      return next(new AppError('No event found with that ID', 404));
+    }
 
-  // Extract fields that need special handling
-  const { youtubeLinks = [], ...updateData } = req.body;
-  
-  // Handle youtubeLinks array updates
-  if (req.body.youtubeLinks) {
-    // Validate youtube links if provided
-    const isValidYoutubeLinks = Array.isArray(youtubeLinks) && 
-      youtubeLinks.every(link => {
-        try {
-          const url = new URL(link);
-          return url.hostname.includes('youtube.com') || 
-                 url.hostname.includes('youtu.be') ||
-                 url.hostname.includes('youtube2.com');
-        } catch (e) {
-          return false;
+    // Log current event data before update
+    console.log('Current event data:', {
+      name: event.name,
+      time: event.time,
+      banner: event.banner
+    });
+
+    // Handle banner update if a new file is uploaded
+    if (req.file) {
+      const banner = req.file.filename;
+      if (!banner) {
+        return next(new AppError('Error processing the uploaded image', 500));
+      }
+      event.banner = banner;
+      console.log('Updated banner to:', banner);
+    }
+
+    // Update fields if they are provided in the request
+    const updatableFields = [
+      'date', 'time', 'location', 'description',
+      'prize', 'lastDate', 'name', 'max_seats',
+      'isStartUpVapiEvent', 'youtubeLinks'
+    ];
+
+    updatableFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        // Special handling for string fields to trim them
+        if (['time', 'location', 'description', 'name'].includes(field)) {
+          event[field] = String(req.body[field]).trim();
         }
-      });
-      
-    if (!isValidYoutubeLinks) {
-      res.status(400);
-      throw new Error('Invalid YouTube links provided');
+        // Special handling for max_seats to ensure it's a number
+        else if (field === 'max_seats') {
+          event[field] = Number(req.body[field]) || 0;
+        }
+        // Handle youtubeLinks as array
+        else if (field === 'youtubeLinks') {
+          const links = Array.isArray(req.body[field]) 
+            ? req.body[field] 
+            : [req.body[field]];
+          event[field] = links;
+        }
+        // Handle boolean field
+        else if (field === 'isStartUpVapiEvent') {
+          event[field] = req.body[field] === 'true' || req.body[field] === true;
+        }
+        // Default handling for other fields
+        else {
+          event[field] = req.body[field];
+        }
+        console.log(`Updated ${field}:`, event[field]);
+      }
+    });
+
+    console.log('Saving updated event...');
+    const updatedEvent = await event.save();
+    
+    console.log('Event updated successfully');
+    res.status(200).json({
+      status: 'success',
+      data: {
+        event: updatedEvent
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating event:', error);
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return next(new AppError(`Validation Error: ${errors.join('. ')}`, 400));
     }
     
-    event.youtubeLinks = youtubeLinks;
-  }
-  
-  // Update other fields
-  Object.keys(updateData).forEach(key => {
-    // Only update fields that exist on the event
-    if (key in event.schema.paths) {
-      event[key] = updateData[key];
+    if (error.code === 11000) {
+      return next(new AppError('Event with this name already exists', 400));
     }
-  });
-  
-  // Handle date fields
-  if (req.body.date) {
-    event.date = new Date(req.body.date);
+    
+    next(error);
   }
-  
-  if (req.body.lastDate) {
-    event.lastDate = new Date(req.body.lastDate);
-  }
-  
-  await event.save();
-
-  res.status(200).json({
-    success: true,
-    data: event
-  });
 });
 
 // @desc    Delete event

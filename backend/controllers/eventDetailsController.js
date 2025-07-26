@@ -287,11 +287,8 @@ exports.deleteEventDetails = asyncHandler(async (req, res, next) => {
 // @route   GET /api/event-details/startup-vapi-events
 // @access  Public
 exports.getStartupVapiEventDetails = asyncHandler(async (req, res, next) => {
-  // Find events where isStartUpVapiEvent is true
-  const events = await Event.find({ isStartUpVapiEvent: true });
-
-  // Find event details for the above events
-  const eventDetails = await EventDetails.find({ eventId: { $in: events.map(event => event._id) } }).populate('eventId')
+  // Find event details where isStartUpVapiEvent is true
+  const eventDetails = await Event.find({ isStartUpVapiEvent: true })
     .sort({ createdAt: -1 });
 
   res.status(200).json({
@@ -308,30 +305,86 @@ exports.getEventDetailsByFilter = asyncHandler(async (req, res, next) => {
   try {
     console.log('Request query parameters:', req.query);
     const filter = req.query.filter || 'all';
-    console.log('Filter value:', filter); 
-    const currentDate = new Date();
-    console.log('Current date:', currentDate);
+    console.log('Filter value:', filter);
+    
+    // Get today's date in DD/MM/YYYY format for comparison
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    const todayStr = `${day}/${month}/${year}`;
+    console.log('Current date string:', todayStr);
+
     let query = {};
 
-  if (filter === 'upcoming') {
-    query = { date: { $gte: currentDate } };
-  } else if (filter === 'past') {
-    query = { date: { $lt: currentDate } };
-  } else if (filter !== 'all') {
-    return next(new AppError('Invalid filter value. Use "upcoming", "past", or "all".', 400));
-  }
+    // Convert date string to sortable format (YYYYMMDD) for comparison
+    const convertToSortableDate = (dateStr) => {
+      const [day, month, year] = dateStr.split('/');
+      return parseInt(`${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`, 10);
+    };
 
-  console.log('MongoDB query:', query);
-  const eventDetails = await EventDetails.find(query).populate('eventId');
-  console.log('Found events:', eventDetails.length);
+    const todaySortable = convertToSortableDate(todayStr);
 
-  res.status(200).json({
-    status: 'success',
-    results: eventDetails.length,
-    data: {
-      eventDetails
+    if (filter === 'upcoming') {
+      query = {
+        $expr: {
+          $gt: [
+            { $toLong: {
+              $concat: [
+                { $substr: [{ $arrayElemAt: [{ $split: ["$date", "/"] }, 2] }, 0, 4] },
+                { $substr: [{ $arrayElemAt: [{ $split: ["$date", "/"] }, 1] }, 0, 2] },
+                { $substr: [{ $arrayElemAt: [{ $split: ["$date", "/"] }, 0] }, 0, 2] }
+              ]
+            }},
+            todaySortable
+          ]
+        }
+      };
+    } else if (filter === 'past') {
+      query = {
+        $expr: {
+          $lt: [
+            { $toLong: {
+              $concat: [
+                { $substr: [{ $arrayElemAt: [{ $split: ["$date", "/"] }, 2] }, 0, 4] },
+                { $substr: [{ $arrayElemAt: [{ $split: ["$date", "/"] }, 1] }, 0, 2] },
+                { $substr: [{ $arrayElemAt: [{ $split: ["$date", "/"] }, 0] }, 0, 2] }
+              ]
+            }},
+            todaySortable
+          ]
+        }
+      };
+    } else if (filter === 'today') {
+      query = {
+        $expr: {
+          $eq: [
+            { $toLong: {
+              $concat: [
+                { $substr: [{ $arrayElemAt: [{ $split: ["$date", "/"] }, 2] }, 0, 4] },
+                { $substr: [{ $arrayElemAt: [{ $split: ["$date", "/"] }, 1] }, 0, 2] },
+                { $substr: [{ $arrayElemAt: [{ $split: ["$date", "/"] }, 0] }, 0, 2] }
+              ]
+            }},
+            todaySortable
+          ]
+        }
+      };
+    } else if (filter !== 'all') {
+      return next(new AppError('Invalid filter value. Use "today", "upcoming", "past", or "all".', 400));
     }
-  });
+
+    // console.log('MongoDB query:', JSON.stringify(query, null, 2));
+    const eventDetails = await Event.find(query);
+    console.log('Found events:', eventDetails.length);
+
+    res.status(200).json({
+      status: 'success',
+      results: eventDetails.length,
+      data: {
+        eventDetails
+      }
+    });
   } catch (error) {
     console.error('Error in getEventDetailsByFilter:', error);
     next(error);
