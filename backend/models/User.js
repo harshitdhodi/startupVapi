@@ -31,6 +31,21 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: 'default.jpg'
   }, 
+  nameOfOrganizer: {
+    type: String,
+    trim: true,
+    default: ""
+  },
+  designation: {
+    type: String,
+    trim: true,
+    default: ""
+  },
+  description: {
+    type: String,
+    trim: true,
+    default: ""
+  },
   password: {
     type: String,
     trim: true,

@@ -123,6 +123,9 @@ app.use('/api/review', require('./routes/review'));
 app.use('/api/video', require('./routes/videoView'));
 app.use('/api/guest', require('./routes/guestRoutes'));
 app.use('/api/event-payment', require('./routes/eventPaymentRoutes'));
+app.use('/api/member-fees', require('./routes/paymentRoutes'));
+app.use('/api/member-payments', require('./routes/memberPaymentRoutes'));
+
 // Static frontend serving (e.g., from React/Vite build)
 const frontendPath = path.join(__dirname, 'dist');
 app.use(express.static(frontendPath));
