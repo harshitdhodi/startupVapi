@@ -5,6 +5,7 @@ const AppError = require('../utils/appError');
 const moment = require('moment');
 const mongoose = require('mongoose');
 const Event = require('../models/Event');
+const StartupEventCandidate = require('../models/StartupEventCandidate');
 
 // @desc    Upload event banner
 // @route   POST /api/event-details/upload-banner
@@ -291,10 +292,31 @@ exports.getStartupVapiEventDetails = asyncHandler(async (req, res, next) => {
   const eventDetails = await Event.find({ isStartUpVapiEvent: true })
     .sort({ createdAt: -1 });
 
+  // Calculate available seats for each event
+  const eventsWithAvailableSeats = await Promise.all(
+    eventDetails.map(async (event) => {
+      // Count total team members registered for this event
+      const registrations = await StartupEventCandidate.aggregate([
+        { $match: { eventId: event._id } },
+        { $project: { teamMembersCount: { $size: "$teamMembers" } } },
+        { $group: { _id: null, total: { $sum: "$teamMembersCount" } } }
+      ]);
+
+      const registeredSeats = registrations.length > 0 ? registrations[0].total : 0;
+      const availableSeats = Math.max(0, event.max_seats - registeredSeats);
+
+      return {
+        ...event.toObject(),
+        availableSeats,
+        registeredSeats
+      };
+    })
+  );
+
   res.status(200).json({
     status: 'success',
-    results: eventDetails.length,
-    data: eventDetails
+    results: eventsWithAvailableSeats.length,
+    data: eventsWithAvailableSeats
   });
 });
 

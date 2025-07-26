@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import CustomSwitch from "@/components/ui/CustomSwitch"
 import { Badge } from "@/components/ui/badge"
 import EventRegistrationForm from "@/components/events/EventRegistrationForm"
+import { Link } from "react-router-dom"
 
 // Dummy data fallback
 const dummyEvents = [
@@ -56,7 +57,7 @@ export default function EventsPage() {
   const fetchEvents = async () => {
     try {
       const response = await fetch("/api/event")
-      console.log("response",response)
+      console.log("response",response.data)
       const result = await response.json()
       console.log(result)
 
@@ -144,12 +145,21 @@ export default function EventsPage() {
   }
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-    })
+    // If the date is already in DD/MM/YYYY format, return as is
+    if (typeof dateString === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateString.trim())) {
+      return dateString.trim();
+    }
+    
+    // Handle ISO date strings or other formats
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+    
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   }
 
   const formatTime = (timeString) => {
@@ -255,7 +265,7 @@ export default function EventsPage() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6 bg-gray-50 mt-10 min-h-screen">
       {isFormOpen && (
         <EventRegistrationForm
           event={selectedEvent}
@@ -266,7 +276,7 @@ export default function EventsPage() {
           isRegisterMode={formMode === 'register'}
         />
       )}
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mt-10 mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Events</h1>
@@ -294,7 +304,7 @@ export default function EventsPage() {
             <SelectTrigger className="w-40 border-gray-300">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white">
               <SelectItem value="All types">All types</SelectItem>
               <SelectItem value="Family event">Family event</SelectItem>
               <SelectItem value="Networking">Networking</SelectItem>
@@ -327,7 +337,9 @@ export default function EventsPage() {
                   <tr key={event._id} className="border-b border-gray-300 hover:bg-gray-50">
                     <td className="py-4 px-4">
                       <div>
-                        <div className="font-medium text-gray-900">{event.eventId.name}</div>
+                        <Link to={`/events/${event._id}`}>
+                          <div className="font-medium text-gray-900">{event.eventId.name}</div>
+                        </Link>
                         <Badge className={`text-xs mt-1 ${getCategoryColor(event.category)}`}>{event.category}</Badge>
                       </div>
                     </td>

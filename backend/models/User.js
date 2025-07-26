@@ -5,17 +5,20 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   firstName: {
     type: String,
-    trim: true
+    trim: true,
+    default: ""
   },
   lastName: {
     type: String,
-    trim: true
+    trim: true,
+    default: ""
   },
   email: {
     type: String,
     sparse: true,   // Only index if the field exists and is not null
     trim: true,
     lowercase: true,
+    default: "",
     validate: {
       validator: function(v) {
         if (!v) return true;  // Allow null/empty
@@ -43,7 +46,7 @@ const userSchema = new mongoose.Schema({
   mobile: {
     countryCode: {
       type: String,
-      default: '+91',
+      default: '+91', // Default country code
       trim: true
     },
     number: {
@@ -75,7 +78,8 @@ const userSchema = new mongoose.Schema({
   },
   city: {
     type: String,
-    trim: true
+    trim: true,
+    default: ""
   },
   otp: {
     type: {

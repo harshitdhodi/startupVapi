@@ -10,7 +10,6 @@ import StartupStar from "./pages/StartupStar";
 import Jury from "./pages/Jury";
 import Learning from "./pages/Learning";
 import Notifications from "./pages/Notifications";
-import Settings from "./pages/Settings";
 import AuthFlow from "./auth/AuthFlow";
 import Login from "./auth/Login";
 import ForgotPassword from "./auth/ForgotPassword";
@@ -21,6 +20,8 @@ import UserProfileDetails from "./components/userDetails/UserProfileDetails";
 import UserProfileList from "./components/userDetails/UserProfileList";
 import DashboardLayout from './layouts/DashboardLayout';
 import UserForm from "./components/userDetails/UserForm";
+import SettingsDashboard from './pages/settings-dashboard';
+import EventsFilter from "./components/events/eventDetails/EventsFilter";
 // Component to handle route rendering based on auth state
 const AppRoutes = () => {
   const { isLoggedIn, loading } = useContext(AuthContext);
@@ -46,6 +47,8 @@ const AppRoutes = () => {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/events" element={<Events />} />
+          <Route path="/events/:id" element={<EventsFilter />} />
+
           <Route path="/users-list" element={<Users />} />
           <Route path="/user-form" element={<UserForm />} />
          
@@ -53,7 +56,7 @@ const AppRoutes = () => {
           <Route path="/jury" element={<Jury />} />
           <Route path="/learning" element={<Learning />} />
           <Route path="/notifications" element={<Notifications />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<SettingsDashboard />} />
           <Route path="/users" element={<UserProfileList />} />
           <Route path="/user/:id" element={<UserProfileDetails />} />
           </Route>
